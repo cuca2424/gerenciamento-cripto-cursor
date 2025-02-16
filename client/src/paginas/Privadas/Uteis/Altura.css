@@ -1,0 +1,7 @@
+.altura {
+    height: calc(100vh - 80px);
+}
+
+.altura-card {
+    height: calc((100vh - 120px) / 2);
+}
