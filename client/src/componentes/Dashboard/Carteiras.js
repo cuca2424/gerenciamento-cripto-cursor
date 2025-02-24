@@ -112,9 +112,42 @@ function Carteiras({carteiras = null, funcaoRecarregar = () => console.log("test
                 
                 {
             !carteiras ? (
-              <div className="d-flex flex-column justify-content-center align-items-center h-100 w-100">
-                <i className="fa-solid fa-spinner fa-spin fa-3x"></i>
-              </div>
+              <div className="table-placeholder w-100">
+                    <table className="table fs-10 px-4">
+                        <thead>
+                            <tr>
+                                <th className="text-start">
+                                    <span className="placeholder-glow d-flex">
+                                        <span className="placeholder col-6 justify-content-center"></span>
+                                    </span>
+                                </th>
+                                <th className="text-center">
+                                </th>
+                                <th className="text-end">
+                                    <span className="placeholder-glow d-flex">
+                                        <span className="placeholder col-12 justify-content-center"></span>
+                                    </span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[...Array(2)].map((_, index) => (
+                                <tr key={index}>
+                                    <td className="py-2">
+                                        <div className="d-flex align-items-center">
+                                            <span className="placeholder col-4 ms-3"></span>
+                                        </div>
+                                    </td>
+                                    <td className="py-2">
+                                    </td>
+                                    <td className="py-2 text-end">
+                                        <span className="placeholder col-8"></span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
           ) : 
           carteiras.length === 0 ? (
                 <h5 className="d-flex justify-content-center align-items-center mt-5 w-100">Você não possui nenhuma carteira.</h5>

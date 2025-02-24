@@ -58,6 +58,9 @@ function GraficoPizza({ dados }) {
                 transitionDuration: 0,
                 axisPointer: {
                   type: 'none'
+                },
+                formatter: (params) => {
+                    return `${params.marker} ${params.name}: $${params.value.toFixed(2)} (${params.percent}%)`;
                 }
               },
             series: [
@@ -77,7 +80,14 @@ function GraficoPizza({ dados }) {
                 }
             ]
         });
+
+        setTimeout(() => {
+            instanceRef.current.resize(); // Ajusta o tamanho depois da renderização
+        }, 10);
+        
     }, [dadosGrafico]);
+
+    
 
     return (
         <div

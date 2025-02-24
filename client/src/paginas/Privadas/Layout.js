@@ -132,22 +132,22 @@ function Layout({componente}) {
                     </Link>
                   </div>
 
-                  {/* item do menu lateral - Sentimento de Mercado*/}
-                  <div class="nav-item-wrapper">
-                    <Link to={"/sentimento_de_mercado"} className={rotaAtual === "/sentimento_de_mercado" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Sentimento De Mercado", rota: "/sentimento_de_mercado", icone: "activity"})}>
-                      <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="activity" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Sentimento de mercado</span></span>
-                      </div>
-                    </Link>
-                  </div>
-
                   {/* label do menu lateral - Filtros */}
-                  <p class="navbar-vertical-label">Filtros
+                  <p class="navbar-vertical-label">Monitoramento
                   </p>
 
                   {/* item do menu lateral - Filtros */}
                   <div class="nav-item-wrapper">
                     <Link to={"/filtros"} className={rotaAtual === "/filtros" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Filtros", rota: "/filtros", icone: "filter"})}>
                       <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="filter" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Filtros</span></span>
+                      </div>
+                    </Link>
+                  </div>
+
+                  {/* item do menu lateral - Notificações */}
+                  <div class="nav-item-wrapper">
+                    <Link to={"/notificacoes"} className={rotaAtual === "/notificacoes" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Notificações", rota: "/notificacoes", icone: "bell"})}>
+                      <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="bell" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Notificações</span></span>
                       </div>
                     </Link>
                   </div>

@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config()
+require('dotenv').config();
+console.log("MONGO_URI:", process.env.MONGO_URI); // Teste para ver se a variável está definida
+
 
 const app = express();
 const port = 3000;
@@ -8,7 +10,6 @@ const port = 3000;
 const axios = require("axios");
 
 const { MongoClient, ObjectId } = require("mongodb");
-const uri_db_local = "mongodb://localhost:27017/projeto_jean";
 const uri_db_nuvem = process.env.MONGO_URI;
 const client = new MongoClient(uri_db_nuvem);
 let db;
@@ -102,6 +103,72 @@ app.get("/criptomoedas", async (req, res) => {
         }
 
         const collection = db.collection("criptomoedas");
+
+        const ativosFiltrados = await collection.find(filtros).toArray();
+
+        res.send(ativosFiltrados);
+
+    } catch (err) {
+        console.log("Erro na API: ", err);
+        res.status(500).send("Erro interno na API.")
+    }
+});
+
+app.get("/criptomoedas_teste", async (req, res) => {
+    try {
+        const parametros = req.query;
+        console.log(parametros)
+
+        const filtros = {};
+
+        for (const chave in parametros) {
+            if (chave.startsWith("rsi-rapido")) {
+                const [, periodo, tipo, condicao] = chave.split("_"); 
+
+                const valor = parseFloat(parametros[chave]);
+
+                const campo = `RSI.rapida.${periodo}.${tipo}`; 
+
+                if (condicao === "maior") {
+                    filtros[campo] = { ...filtros[campo], $gte: valor };
+                } else if (condicao === "menor") {
+                    filtros[campo] = { ...filtros[campo], $lte: valor };
+                }
+            }
+        }
+        for (const chave in parametros) {
+            if (chave.startsWith("rsi-lento")) {
+                const [, periodo, tipo, condicao] = chave.split("_"); 
+
+                const valor = parseFloat(parametros[chave]);
+
+                const campo = `RSI.lenta.${periodo}.${tipo}`; 
+
+                if (condicao === "maior") {
+                    filtros[campo] = { ...filtros[campo], $gte: valor };
+                } else if (condicao === "menor") {
+                    filtros[campo] = { ...filtros[campo], $lte: valor };
+                }
+            }
+        }
+        for (const chave in parametros) {
+            if (chave.startsWith("ema")) {
+                const [, , tipo, condicao] = chave.split("_"); 
+                const periodo = "diario";
+
+                const valor = parseFloat(parametros[chave]);
+
+                const campo = `EMA.${periodo}.${tipo}`; 
+
+                if (condicao === "maior") {
+                    filtros[campo] = { ...filtros[campo], $gte: valor };
+                } else if (condicao === "menor") {
+                    filtros[campo] = { ...filtros[campo], $lte: valor };
+                }
+            }
+        }
+
+        const collection = db.collection("teste_criptomoedas");
 
         const ativosFiltrados = await collection.find(filtros).toArray();
 
@@ -595,7 +662,7 @@ app.get("/test2", async (req, res) => {
 })
 
 app.get("/maiores_variacoes", async (req, res) => {
-    const criptomoedas = await db.collection("criptomoedas").find().toArray() || []; 
+    const criptomoedas = await db.collection("teste_criptomoedas").find().toArray() || []; 
     
     criptomoedas.sort((a, b) => b.variacao24h - a.variacao24h); 
 
@@ -603,4 +670,92 @@ app.get("/maiores_variacoes", async (req, res) => {
     const maioresPerdas = criptomoedas.slice(-5).reverse();
 
     res.status(200).send({maioresGanhos, maioresPerdas});
+});
+
+app.get("/aporte-saldo/:id_usuario", async (req, res) => {
+    // funcoes auxiliares
+
+    // gerando últimos 6 meses
+    const primeiroMes = new Date();
+    const ultimosSeisMeses = [];
+       
+    for (let i = 0; i < 6; i++) {
+        const mes = new Date(primeiroMes);
+        mes.setMonth(mes.getMonth() - i);
+        ultimosSeisMeses.push(mes.toISOString().slice(0, 7)); // "YYYY-MM"
+    }
+
+    // acumulando aportes
+    const acumularAportes = (aportes) => {
+        const aportesPorMes = ultimosSeisMeses.reduce((acc, mes) => {
+            if (!acc[mes]) acc[mes] = []; // Cria uma lista vazia para cada mês
+            return acc;
+        }, {});
+        
+        aportes.forEach(aporte => {
+            const dataAporte = new Date(aporte.data);
+            const mesAporte = dataAporte.toISOString().slice(0, 7); // "YYYY-MM"
+        
+            // Se o aporte for para um mês dentro dos últimos seis meses
+            if (ultimosSeisMeses.includes(mesAporte)) {
+                aportesPorMes[mesAporte].push(aporte);
+            } else {
+                // Caso contrário, aloca o aporte no mês mais antigo
+                aportesPorMes[ultimosSeisMeses[ultimosSeisMeses.length - 1]].push(aporte);
+            }
+        });
+
+        
+        // 3. Resultado final - criando o array acumulado de aportes por mês
+        const acumuladoPorMes = [];
+        let aportesAcumulados = [];
+        
+        ultimosSeisMeses.reverse().forEach(mes => {
+            const aportesDoMes = aportesPorMes[mes];
+            aportesAcumulados = [...aportesAcumulados, ...aportesDoMes];  // Acumula os aportes do mês atual e de meses anteriores
+            acumuladoPorMes.push({
+                mes,
+                aportes: [...aportesAcumulados]  // Guarda todos os aportes acumulados até aquele mês
+            });
+        });
+        console.log("aportes => ", aportes);
+        console.log("acumulados por mês => ", acumuladoPorMes);
+        return acumuladoPorMes;
+    }
+
+
+    //pegar id do usuario
+    const id_usuario = req.params.id_usuario;
+
+    if (id_usuario.length !== 24) {
+        return res.status(400).send('ID de usuário não válido.'); 
+    }
+
+    const user = await db.collection('usuarios').findOne({ _id: new ObjectId(id_usuario)});
+
+    if (!user) {
+        return res.status(400).send('ID de usuário não válido.');  
+    }
+
+    //pegar carteiras do usario
+    const carteiras = await db.collection('carteiras').find({ id_usuario: id_usuario }).toArray();
+
+    //para cada carteira agrupar os aportes
+    const minhaResposta = {};
+
+    
+
+    for (let i = 0; i < carteiras.length; i++) {
+        const carteira = carteiras[i];
+        const aportes = await db.collection('aportes').find({id_carteira: carteira._id}).toArray();
+        minhaResposta[carteira._id] = acumularAportes(aportes);
+    }
+
+    console.log("minhaResposta => ", minhaResposta);
+
+    res.status(200).send(minhaResposta);
+
+    //agrupar o último preco de cada mes
+    //fazer calculo dos saldos por mes
+    //fazer calculo geral
 });

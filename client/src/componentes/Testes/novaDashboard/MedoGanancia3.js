@@ -24,7 +24,7 @@ function MedoGanancia3() {
                 <span class="badge badge-phoenix badge-phoenix-primary fs-9 d-flex align-items-center justify-content-center">
                 <span class="fa-solid fa-plus me-1">
                 </span>
-                23.35%
+                36.00%
                 </span>
             </div>
             <hr className="m-0" />
@@ -38,7 +38,7 @@ function MedoGanancia3() {
                 <span class="badge badge-phoenix badge-phoenix-primary fs-9 d-flex align-items-center justify-content-center">
                 <span class="fa-solid fa-plus me-1">
                 </span>
-                23.35%
+                61.44%
                 
                 </span>
             </div>

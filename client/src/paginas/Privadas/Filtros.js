@@ -210,7 +210,7 @@ function Filtros() {
           </form>
           </div>
 
-                  <div class="card h-100" style={{flexGrow: "1"}}>
+                  <div class="card h-100 mb-2 ms-0" style={{flexGrow: "1"}}>
                   <div class="card-body py-0">
                   { 
                   carregando ? (

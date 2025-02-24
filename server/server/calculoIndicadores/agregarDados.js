@@ -3,7 +3,6 @@ const { startOfWeek, startOfMonth, format } = require("date-fns");
 function agregarDados(prices, period) {
     if (prices.length > 0) {
 
-  
         const grouped = prices.reduce((acc, { date, price }) => {
         
         let key;

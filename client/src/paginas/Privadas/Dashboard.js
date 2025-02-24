@@ -44,11 +44,9 @@ function Dashboard() {
         setCarteiras(dados.carteirasComDetalhes);
         setDadosGerais(dados.dadosTotais);
         setResultadoGeral(dados.resultadoGeral);
-        console.log("carteiras: ", carteiras);
-        console.log(dadosGerais)
-        console.log(dados);
+        console.log("teste de dados");
+        console.log(dados)
       }
-      
     } catch (err) {
       console.log("Erro ao buscar carteiras: ", err);
     }
@@ -69,8 +67,7 @@ function Dashboard() {
   }
 
   // atualizarDados();
-  console.log("Carteira Selecionada: ", carteiraSelecionada?.resultado);
-  console.log("dados gráfico pizza: ", dadosDashboard);
+  console.log("usuario => ", id_usuario)
 
   function selecionarCarteira() {
     const id_carteira = document.getElementById("option-carteiras").value;
@@ -153,11 +150,6 @@ function Dashboard() {
     modal.addEventListener("hidden.bs.modal", () => {
       setReabrir(false);
     })
-    atualizarDados();
-    dadosAdicionais();
-    setDadosAporteSaldo([{ mes: "Julho", saldo: 900, aporte: 700 }]);
-    console.log("___________________________________________________________________________")
-    console.log("aportesaldo: ", dadosAporteSaldo);
   }, [])
 
   useEffect(() => {
@@ -165,6 +157,13 @@ function Dashboard() {
       selecionarCarteira();
     }
   }, [dadosGerais]);
+
+  useEffect(() => {
+    if (id_usuario) {
+      atualizarDados();
+      dadosAdicionais();
+    }
+  }, [id_usuario]);
 
 
   return(
@@ -259,7 +258,7 @@ function Dashboard() {
                       </div>
                       <h5 class="text-body-highlight mb-2">
                         {dadosDashboard ? (
-                          `${dadosDashboard.lucro.nominal.toLocaleString('en',{style: 'currency', currency: 'USD'})} (${(dadosDashboard.lucro.porcentual ?? 0).toFixed(2)}%)`
+                          `${dadosDashboard.lucro.nominal.toLocaleString('en',{style: 'currency', currency: 'USD'})} (${(dadosDashboard.lucro.porcentual ?? 0.00).toFixed(2)}%)`
                         ) : (
                           <span className="placeholder-glow d-flex">
                             <span className="placeholder col-6 justify-content-center"></span>
