@@ -40,6 +40,8 @@ function GraficoPizza({ dados }) {
             instanceRef.current = echarts.init(chartRef.current);
         }
 
+        instanceRef.current.resize();
+
         instanceRef.current.setOption({
             legend: {
                 orient: 'vertical',
@@ -81,10 +83,7 @@ function GraficoPizza({ dados }) {
             ]
         });
 
-        setTimeout(() => {
-            instanceRef.current.resize(); // Ajusta o tamanho depois da renderização
-        }, 10);
-        
+         
     }, [dadosGrafico]);
 
     

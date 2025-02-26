@@ -183,7 +183,7 @@ app.get("/criptomoedas_teste", async (req, res) => {
 app.get("/criptomoedas/lista", async (req, res) => {
     try {
         // Busca apenas os campos `nome` e `id`
-        const dados = await db.collection("criptomoedas").find({}, { projection: { nome: 1, id: 1, _id: 0 } }).toArray();
+        const dados = await db.collection("teste_criptomoedas").find({}, { projection: { nome: 1, id: 1, _id: 0 } }).toArray();
 
         // Envia a resposta
         res.status(200).send(dados);
@@ -436,7 +436,7 @@ app.get("/carteiras-detalhadas/:id_usuario", async (req, res) => {
   
       const carteiras = await db.collection("carteiras").find({ id_usuario: id_usuario }).toArray();
   
-      const dados = await db.collection("criptomoedas").find().toArray();
+      const dados = await db.collection("teste_criptomoedas").find().toArray();
 
       const mapaDados = dados.reduce((acc, preco) => {
         acc[preco.id] = {"preco": preco.precoAtual, "imagem": preco.imagem, "nome": preco.nome};
@@ -673,89 +673,166 @@ app.get("/maiores_variacoes", async (req, res) => {
 });
 
 app.get("/aporte-saldo/:id_usuario", async (req, res) => {
-    // funcoes auxiliares
-
-    // gerando últimos 6 meses
+   // Função auxiliar para gerar os últimos 6 meses
+   const gerarUltimosSeisMeses = () => {
     const primeiroMes = new Date();
     const ultimosSeisMeses = [];
-       
+
     for (let i = 0; i < 6; i++) {
         const mes = new Date(primeiroMes);
         mes.setMonth(mes.getMonth() - i);
         ultimosSeisMeses.push(mes.toISOString().slice(0, 7)); // "YYYY-MM"
     }
 
-    // acumulando aportes
-    const acumularAportes = (aportes) => {
-        const aportesPorMes = ultimosSeisMeses.reduce((acc, mes) => {
-            if (!acc[mes]) acc[mes] = []; // Cria uma lista vazia para cada mês
-            return acc;
-        }, {});
-        
-        aportes.forEach(aporte => {
-            const dataAporte = new Date(aporte.data);
-            const mesAporte = dataAporte.toISOString().slice(0, 7); // "YYYY-MM"
-        
-            // Se o aporte for para um mês dentro dos últimos seis meses
-            if (ultimosSeisMeses.includes(mesAporte)) {
-                aportesPorMes[mesAporte].push(aporte);
-            } else {
-                // Caso contrário, aloca o aporte no mês mais antigo
-                aportesPorMes[ultimosSeisMeses[ultimosSeisMeses.length - 1]].push(aporte);
+    return ultimosSeisMeses;
+};
+
+// Função auxiliar para acumular aportes
+const acumularAportes = (transacoes, precos) => {
+    let resultado = {};
+
+    // Obtém a data atual e calcula os últimos 6 meses
+    const hoje = new Date();
+    let mesesValidos = [];
+    for (let i = 5; i >= 0; i--) {
+        let data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        let mesFormatado = data.toISOString().slice(0, 7);
+        mesesValidos.push(mesFormatado);
+        resultado[mesFormatado] = { aportes: 0, saldos: 0, quantidadePorCripto: {} };
+    }
+
+    // Processar transações e acumular aportes
+    transacoes.forEach(({ criptomoeda, precoPago, quantidade, data }) => {
+        const mes = new Date(data).toISOString().slice(0, 7);
+
+        // Se a transação estiver fora do intervalo dos meses válidos, adiciona ao primeiro mês
+        const mesValido = mesesValidos.includes(mes) ? mes : mesesValidos[0];
+
+        // Acumula os aportes no mês válido
+        resultado[mesValido].aportes += precoPago;
+
+        // Acumular a quantidade de cada criptomoeda para o cálculo de saldos
+        if (!resultado[mesValido].quantidadePorCripto[criptomoeda]) {
+            resultado[mesValido].quantidadePorCripto[criptomoeda] = 0;
+        }
+        resultado[mesValido].quantidadePorCripto[criptomoeda] += Number(quantidade);
+    });
+
+    // Acumular os aportes de meses anteriores
+    const meses = Object.keys(resultado);
+    meses.forEach((mes, index) => {
+        if (index > 0) { // Se não for o primeiro mês
+            // Acumula os aportes do mês atual com os anteriores
+            resultado[mes].aportes += resultado[meses[index - 1]].aportes;
+            // Acumula as quantidades das criptos dos meses anteriores
+            for (const criptomoeda in resultado[meses[index - 1]].quantidadePorCripto) {
+                if (!resultado[mes].quantidadePorCripto[criptomoeda]) {
+                    resultado[mes].quantidadePorCripto[criptomoeda] = 0;
+                }
+                resultado[mes].quantidadePorCripto[criptomoeda] += resultado[meses[index - 1]].quantidadePorCripto[criptomoeda];
             }
-        });
+        }
+    });
 
-        
-        // 3. Resultado final - criando o array acumulado de aportes por mês
-        const acumuladoPorMes = [];
-        let aportesAcumulados = [];
-        
-        ultimosSeisMeses.reverse().forEach(mes => {
-            const aportesDoMes = aportesPorMes[mes];
-            aportesAcumulados = [...aportesAcumulados, ...aportesDoMes];  // Acumula os aportes do mês atual e de meses anteriores
-            acumuladoPorMes.push({
-                mes,
-                aportes: [...aportesAcumulados]  // Guarda todos os aportes acumulados até aquele mês
-            });
-        });
-        console.log("aportes => ", aportes);
-        console.log("acumulados por mês => ", acumuladoPorMes);
-        return acumuladoPorMes;
+    // Calcular os saldos com base nos preços
+    for (const mes in resultado) {
+        let saldo = 0;
+        if (resultado[mes].quantidadePorCripto) {
+            for (const criptomoeda in resultado[mes].quantidadePorCripto) {
+                const precoAtual = precos[criptomoeda]?.[mes] || 0;
+                saldo += resultado[mes].quantidadePorCripto[criptomoeda] * precoAtual;
+            }
+        }
+
+        // Ajustar a saída final
+        resultado[mes].saldos = saldo;
+        delete resultado[mes].quantidadePorCripto; // Remover a chave auxiliar `quantidadePorCripto`
     }
 
+    return resultado;
+};
 
-    //pegar id do usuario
+
+
+    // Pegar id do usuário
     const id_usuario = req.params.id_usuario;
-
     if (id_usuario.length !== 24) {
-        return res.status(400).send('ID de usuário não válido.'); 
+        return res.status(400).send('ID de usuário não válido.');
     }
 
-    const user = await db.collection('usuarios').findOne({ _id: new ObjectId(id_usuario)});
-
+    const user = await db.collection('usuarios').findOne({ _id: new ObjectId(id_usuario) });
     if (!user) {
-        return res.status(400).send('ID de usuário não válido.');  
+        return res.status(400).send('ID de usuário não válido.');
     }
 
-    //pegar carteiras do usario
+    // Pegar carteiras do usuário
     const carteiras = await db.collection('carteiras').find({ id_usuario: id_usuario }).toArray();
-
-    //para cada carteira agrupar os aportes
-    const minhaResposta = {};
-
     
 
-    for (let i = 0; i < carteiras.length; i++) {
-        const carteira = carteiras[i];
-        const aportes = await db.collection('aportes').find({id_carteira: carteira._id}).toArray();
-        minhaResposta[carteira._id] = acumularAportes(aportes);
+     // Pegar os preços atualizados
+     const precos = await db.collection("preços").find().toArray();
+
+     // Função para extrair os últimos preços por mês
+     const extrairUltimosPrecosPorMes = (ativo) => {
+         const precosPorMes = {};
+ 
+         ativo.precos.forEach(({ date, price }) => {
+             const mes = date.toISOString().slice(0, 7); // "YYYY-MM"
+             precosPorMes[mes] = price;
+         });
+ 
+         return precosPorMes;
+     };
+
+    // Extrair os preços para cada ativo
+    const ultimoPrecoPorMes = {};
+
+    for (let i = 0; i < precos.length; i++) {
+        const preco = precos[i];
+        ultimoPrecoPorMes[preco.id] = extrairUltimosPrecosPorMes(preco);
     }
 
-    console.log("minhaResposta => ", minhaResposta);
+    console.log(ultimoPrecoPorMes["solana"]);
 
-    res.status(200).send(minhaResposta);
+     // Para cada carteira, agrupar os aportes
+     const minhaResposta = {};
 
-    //agrupar o último preco de cada mes
-    //fazer calculo dos saldos por mes
-    //fazer calculo geral
+     for (let i = 0; i < carteiras.length; i++) {
+         const carteira = carteiras[i];
+         const aportes = await db.collection('aportes').find({ id_carteira: carteira._id }).toArray();
+         console.log(aportes);
+         minhaResposta[carteira._id] = acumularAportes(aportes, ultimoPrecoPorMes);
+     }
+
+     const adicionarGeral = (response) => {
+        // Obter todos os meses presentes nas carteiras
+        const meses = Object.values(response).reduce((acc, carteira) => {
+          Object.keys(carteira).forEach(mes => acc.add(mes));
+          return acc;
+        }, new Set());
+      
+        // Inicializar o objeto "geral" com todos os meses e valores zerados
+        const geral = [...meses].reduce((acc, mes) => {
+          acc[mes] = { aportes: 0, saldos: 0 };
+          return acc;
+        }, {});
+      
+        // Somar os valores de aportes e saldos
+        Object.values(response).forEach(carteira => {
+          Object.entries(carteira).forEach(([mes, dados]) => {
+            geral[mes].aportes += dados.aportes;
+            geral[mes].saldos += dados.saldos;
+          });
+        });
+      
+        // Adiciona a chave "geral" no response
+        response["geral"] = geral;
+      
+        return response;
+      };
+
+      const responseComGeral = adicionarGeral(minhaResposta);
+
+     res.status(200).send(responseComGeral);
 });
+

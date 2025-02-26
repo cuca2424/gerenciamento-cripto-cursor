@@ -7,37 +7,77 @@ function AporteSaldo3({ dados }) {
     const instanceRef = useRef(null);
     const [dadosGrafico, setDadosGrafico] = useState({});
 
-    console.log("999999999999999999999999999999999999999999999")
-    console.log("dados gráfico normal => ", dadosGrafico)
+    const mapMeses = {
+      "01": "Janeiro",
+      "02": "Fevereiro",
+      "03": "Março",
+      "04": "Abril",
+      "05": "Maio",
+      "06": "Junho",
+      "07": "Julho",
+      "08": "Agosto",
+      "09": "Setembro",
+      "10": "Outubro",
+      "11": "Novembro",
+      "12": "Dezembro",
+    };
+    
+// Função para pegar os últimos 6 meses
+const getUltimos6Meses = () => {
+  const meses = [];
+  const hoje = new Date();
+  
+  for (let i = 0; i < 6; i++) {
+      const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+      const mesFormatado = mesAnterior.toISOString().split("T")[0]; // Formato: "YYYY-MM-DD"
+      meses.push(mesFormatado);
+  }
 
-    const meses = [
-        'Setembro',
-        'Outubro',
-        'Novembro',
-        'Dezembro',
-        'Janeiro',
-        'Fevereiro'
-    ]
+  return meses.reverse(); // Reverte para ter do mês mais antigo para o mais recente
+};
+
 
     useEffect(() => {
-        if (dados) {
+        if (dados && Object.keys(dados).length > 0) {
+            const meses = Object.keys(dados);
+            const aportes = [];
+            const saldos = [];
+
+            meses.forEach((mes) => {
+                if (dados[mes]) {
+                    aportes.push(dados[mes].aportes);
+                    saldos.push(dados[mes].saldos);
+                } else {
+                    aportes.push(0); // Se não tiver dados para o mês, coloca 0
+                    saldos.push(0);
+                }
+            });
+
+            const mesesConvertidos = meses.map(mes => {
+              const [ano, mesNumero] = mes.split("-");
+              return mapMeses[mesNumero];
+            });
+
             setDadosGrafico({
-                meses: meses,
-                aportes: dados.aportes,
-                saldos: dados.saldos,
+                meses: mesesConvertidos,
+                aportes: aportes,
+                saldos: saldos,
             });
         } else {
-            setDadosGrafico([
-                {
-                    meses: meses,
-                    aportes: [
-                        0, 0, 0, 0, 0, 0
-                    ],
-                    saldos: [
-                        0, 0, 0, 0, 0, 0
-                    ]
-                }
-            ]);
+            // Caso não tenha dados, inicializar com 0 para todos os meses
+            const mesesUltimos6 = getUltimos6Meses();
+            console.log("ultimos 6 meses => ", mesesUltimos6)
+
+            const mesesConvertidos = mesesUltimos6.map(mes => {
+              const [ano, mesNumero, dia] = mes.split("-");
+              return mapMeses[mesNumero]; 
+            });
+
+            setDadosGrafico({
+                meses: mesesConvertidos,
+                aportes: Array(6).fill(0),
+                saldos: Array(6).fill(0),
+            });
         }
     }, [dados]);
 
@@ -48,41 +88,26 @@ function AporteSaldo3({ dados }) {
             instanceRef.current = echarts.init(chartRef.current);
         }
 
-        const months = [
-            'Julho',
-            'Agosto',
-            'Setembro',
-            'Outubro',
-            'Novembro',
-            'Dezembro'
-          ];
-        
-          const data1 = [
-            100, 200, 300, 400, 500, 600
-          ];
-        
-          const data2 = [
-            200, 400, 600, 800, 1000, 1200
-          ];
+        instanceRef.current.resize();
 
-        const tooltipFormatter = params => {
-            const month = params[0].name; // O mês da série (comum para ambas)
-            const saldo = params[0].value;  // Valor de data2 (saldo)
-            const aporte = params[1].value; // Valor de data1 (aporte)
-            
+        const tooltipFormatter = (params) => {
+            const month = params[0].name;
+            const saldo = params[0].value;
+            const aporte = params[1].value;
+
             return `
-            <div>
-              <h6 class="fs-9 text-body-tertiary mb-0">
-                <span class="fas fa-circle me-1" style='color:${params[0].borderColor}'></span>
-                Saldo: $${(saldo ?? 0).toFixed(2)}
-              </h6>
-              <h6 class="fs-9 text-body-tertiary mb-0">
-                <span class="fas fa-circle me-1" style='color:${params[1].borderColor}'></span>
-                Aporte: $${(aporte ?? 0).toFixed(2)}
-              </h6>
-            </div>
+                <div>
+                    <h6 class="fs-9 text-body-tertiary mb-0">
+                        <span class="fas fa-circle me-1" style='color:${params[0].borderColor}'></span>
+                        Saldo: $${(saldo ?? 0).toFixed(2)}
+                    </h6>
+                    <h6 class="fs-9 text-body-tertiary mb-0">
+                        <span class="fas fa-circle me-1" style='color:${params[1].borderColor}'></span>
+                        Aporte: $${(aporte ?? 0).toFixed(2)}
+                    </h6>
+                </div>
             `;
-          };
+        };
 
         instanceRef.current.setOption({
             tooltip: {
@@ -116,8 +141,8 @@ function AporteSaldo3({ dados }) {
                 splitLine: {
                   show: false
                 }
-              },
-              yAxis: {
+            },
+            yAxis: {
                 type: 'value',
                 splitLine: {
                   lineStyle: {
@@ -191,3 +216,4 @@ function AporteSaldo3({ dados }) {
 }
 
 export default AporteSaldo3;
+

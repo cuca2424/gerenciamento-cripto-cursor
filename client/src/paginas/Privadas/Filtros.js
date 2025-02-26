@@ -9,27 +9,45 @@ function Filtros() {
     // ordenação
     const [ordem, setOrdem] = useState("capitalizacaoDeMercado")
     // em teste
-    const [crescente, setCrescente] = useState(true);
 
     // campos para ordenação
-    const [campoPrecoAtual, setCampoPrecoAtual] = useState("padrao");
-    const [campoEMA, setCampoEMA] = useState("padrao");
-    const [campoRSI, setCampoRSI] = useState("padrao");
-    const [campoCapitalizacao, setCampoCapitalizacao] = useState("alto");
-    const [campoVolume, setCampoVolume] = useState("padrao");
+    const [ordemPrecoAtual, setOrdemPrecoAtual] = useState("padrao");
+
+    const [ordemRSIRapido, setOrdemRSIRapido] = useState("padrao");
+    const [ordemRSILento, setOrdemRSILento] = useState("padrao");
+
+    const [ordemEMA20, setOrdemEMA20] = useState("padrao");
+    const [ordemEMA50, setOrdemEMA50] = useState("padrao");
+
+    const [ordemCapitalizacao, setOrdemCapitalizacao] = useState("alto");
+    const [ordemVolume, setOrdemVolume] = useState("padrao");
+
+    // campos dos filtros
+    const [campoRSIRapido, setCampoRSIRapido] = useState("");
+    const [campoRSILento, setCampoRSILento] = useState("");
+    const [campoEstocasticoRapido, setCampoEstocasticoRapido] = useState("");
+    const [campoEstocasticoLento, setCampoEstocasticoLento] = useState("");
+    const [campoEMA20, setCampoEMA20] = useState("");
+    const [campoEMA50, setCampoEMA50] = useState("");
+    const [periodo, setPeriodo] = useState("diario");
+
 
     const reiniciarCampo = () => {
-      setCampoPrecoAtual("padrao");
-      setCampoEMA("padrao");
-      setCampoRSI("padrao");
-      setCampoCapitalizacao("padrao");
-      setCampoVolume("padrao");
+      setOrdemPrecoAtual("padrao");
+      setOrdemRSIRapido("padrao");
+      setOrdemRSILento("padrao");
+      setOrdemEMA20("padrao");
+      setOrdemEMA50("padrao");
+      setOrdemCapitalizacao("padrao");
+      setOrdemVolume("padrao");
     }
 
     const [carregando, setCarregando] = useState(true);
     const [erro, setErro] = useState(null);
 
     const ordenarDados = (ordem, menorProMaior = false) => {
+      console.log("dados ordem...");
+      console.log(dados.sort((a, b) => a["precoAtual"] - b["precoAtual"]))
       if (menorProMaior) {
         setDados(dados.sort((a, b) => a[ordem] - b[ordem]));
         setDados(dados.slice());
@@ -39,19 +57,62 @@ function Filtros() {
       }
     }
 
-    const ordenarDadosPorIndicador = (indicador, menorProMaior = false, intervalo = "diario", periodo = "14") => {
+    const ordenarDadosPorRSI = (tipo, menorProMaior = false, intervalo = "diario", periodo = "14") => {
+      console.log("Função ordenar por RSI");
+      console.log(tipo, intervalo, periodo);
+      
+      // Verifique se o valor existe para evitar erro de undefined
+      console.log(dados[0]?.["RSI"]?.[tipo]?.[intervalo]?.[periodo]);
+    
+      // Crie uma cópia do array para evitar mutação direta
+      const dadosOrdenados = [...dados];
+    
       if (menorProMaior) {
-        setDados(dados.sort((a, b) => (a[indicador][intervalo][periodo] ?? 0) - (b[indicador][intervalo][periodo]) ?? 0));
-        setDados(dados.slice());
+        dadosOrdenados.sort((a, b) => {
+          const rsiA = a["RSI"][tipo]?.[intervalo]?.[periodo] ?? 0;
+          const rsiB = b["RSI"][tipo]?.[intervalo]?.[periodo] ?? 0;
+          return rsiA - rsiB;
+        });
       } else {
-        setDados(dados.sort((a, b) => (b[indicador][intervalo][periodo] ?? 0) - (a[indicador][intervalo][periodo]) ?? 0));
-        setDados(dados.slice());
+        dadosOrdenados.sort((a, b) => {
+          const rsiA = a["RSI"][tipo]?.[intervalo]?.[periodo] ?? 0;
+          const rsiB = b["RSI"][tipo]?.[intervalo]?.[periodo] ?? 0;
+          return rsiB - rsiA;
+        });
       }
-    }
+    
+      // Atualize o estado com os dados ordenados
+      console.log("dados ordenados => ", dadosOrdenados)
+      setDados(dadosOrdenados);
+    };
+
+    const ordenarDadosPorEMA = (periodo, menorProMaior = false, intervalo = "diario") => {
+      console.log("Função ordenar por RSI");
+      
+      // Crie uma cópia do array para evitar mutação direta
+      const dadosOrdenados = [...dados];
+    
+      if (menorProMaior) {
+        dadosOrdenados.sort((a, b) => {
+          const rsiA = a["EMA"][intervalo]?.[periodo] ?? 0;
+          const rsiB = b["EMA"][intervalo]?.[periodo] ?? 0;
+          return rsiA - rsiB;
+        });
+      } else {
+        dadosOrdenados.sort((a, b) => {
+          const rsiA = a["EMA"][intervalo]?.[periodo] ?? 0;
+          const rsiB = b["EMA"][intervalo]?.[periodo] ?? 0;
+          return rsiB - rsiA;
+        });
+      }
+    
+      // Atualize o estado com os dados ordenados
+      setDados(dadosOrdenados);
+    };
 
     const buscarDados = async (parametros = "",) => {
       try {
-          const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/criptomoedas${parametros}`);
+          const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/criptomoedas_teste${parametros}`);
           
           if (!resposta.ok) {
               throw new Error("Erro ao buscar dados da API");
@@ -105,7 +166,6 @@ function Filtros() {
 
       if (!data.indicador || !data.intervalo || !data.periodo || !data.condicao || !data.valor){
         console.log("Preencha todos os dados");
-        console.log(data);
       } else {       
         const requisicao = `?${data.indicador.toLowerCase()}_${data.intervalo.toLowerCase()}_${data.periodo}_${data.condicao.replace(" ", "_")}=${data.valor}`;
         
@@ -113,6 +173,51 @@ function Filtros() {
         buscarDados(requisicao);
       }
     };
+
+    const handleSubmitTest = () => {
+      reiniciarCampo();
+      const condicaoRSIrapido = document.getElementById("condicao_rsi_rapida")?.value;
+      const condicaoRSILento = document.getElementById("condicao_rsi_lenta")?.value;
+      const condicaoEstocasticoRapido = document.getElementById("condicao_estocastico_rapida")?.value;
+      const condicaoEstocasticoLento = document.getElementById("condicao_estocastico_lenta")?.value;
+      const condicaoEMA20 = document.getElementById("condicao_ema_20")?.value;
+      const condicaoEMA50 = document.getElementById("condicao_ema_50")?.value;
+
+      const periodoFiltros = document.getElementById("periodo_filtros")?.value;
+      setPeriodo(periodoFiltros);
+
+      console.log("campo rsi rapido => ",condicaoRSIrapido, campoRSIRapido);
+      console.log("campo rsi lento => ",condicaoRSILento, campoRSILento);
+      console.log("campo estocastico rapido => ", condicaoEstocasticoRapido, campoEstocasticoRapido);
+      console.log("campo estocastico lento => ",condicaoEstocasticoLento, campoEstocasticoLento);
+      console.log("campo ema 20 => ",condicaoEMA20, campoEMA20);
+      console.log("campo ema 50 => ",condicaoEMA50, campoEMA50);
+
+      const indicadores = [
+        { id: "condicao_rsi_rapida", nome: "rsi-rapido", periodo: periodoFiltros == "mensal" ? 7 : 14 , valor: campoRSIRapido},
+        { id: "condicao_rsi_lenta", nome: "rsi-lento", periodo: periodoFiltros == "mensal" ? 7 : 14, valor: campoRSILento },
+        { id: "condicao_estocastico_rapida", nome: "estocastico-rapido", periodo: 14, valor: campoEstocasticoRapido },
+        { id: "condicao_estocastico_lenta", nome: "estocastico-lento", periodo: 14, valor: campoEstocasticoLento },
+        { id: "condicao_ema_20", nome: "ema", periodo: 20, valor: campoEMA20 },
+        { id: "condicao_ema_50", nome: "ema", periodo: 50, valor: campoEMA50 },
+    ];
+
+    let parametros = [];
+
+    indicadores.forEach(indicador => {
+        const condicao = document.getElementById(indicador.id)?.value;
+        const valor = indicador.valor
+        if (valor) {
+          parametros.push(`${indicador.nome}_${periodoFiltros}_${indicador.periodo}_${condicao}=${indicador.valor}`);
+        }
+    });
+
+    // Criando a query string final
+    const queryString = parametros.length ? `?${parametros.join("&")}` : "";
+
+    console.log("Requisição montada:", queryString); 
+    buscarDados(queryString)
+    }
 
     useEffect(() => {
 
@@ -133,7 +238,7 @@ function Filtros() {
         } else if (larguraTela < 1900) {
           setItensPorPagina(10); 
         } else {
-          setItensPorPagina(12); 
+          setItensPorPagina(11); 
         }
       };
 
@@ -155,60 +260,140 @@ function Filtros() {
 
     return(
         <div class="col-12 altura" style={{display: "flex", flexDirection: "column"}}>
-          <div className="row align-items-center mb-3">
-          <form className=" d-flex flex-wrap" onSubmit={handleSubmit}>
+          <div className="row align-items-center mx-0 mb-3 mt-2 d-flex">
+  <div className="d-flex w-100 m-0 p-0">
+    {/* Cards */}
+    <div className="d-flex w-100 m-0 p-0">
+      <div className="card flex-grow-1 h-100">
+      <div className="card-body m-0 p-1">
+        <h4 className="text-start m-2 text-center">
+          RSI
+        </h4>
 
-          <div class="col-6 col-md-auto p-2">
+          <div className="d-flex justify-content-between mb-2">
+            <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>RÁPIDA</h8>
             <div className="form-floating">
-                <select name="indicador" id="indicador" class="form-select" aria-label="Indicador">
-                    <option value="rsi" selected>RSI</option>
-                    <option value="ema">EMA</option>
-                </select>
-                <label for="indicador">indicador</label>
-            </div>
+                        <select name="condicao" id="condicao_rsi_rapida" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" onChange={e => setCampoRSIRapido(e.target.value)} />
+                        <label for="valor">valor</label>
+                      </div>
           </div>
 
-            <div class="col-6 col-md-auto p-2">
+          <div className="d-flex justify-content-between mb-2">
+          <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>LENTA</h8>
             <div className="form-floating">
-                <select name="intervalo" id="intervalo" class="form-select" aria-label="Dropdown 1">
-                    <option value="diario" selected>Diário</option>
-                    <option value="semanal">Semanal</option>
-                    <option value="mensal">Mensal</option>
-                </select>
-                <label for="intervalo">intervalo</label>
-            </div>
-            </div>
-
-            <div class="col-6 col-md-auto p-2">
-              <div className="form-floating">
-                <input name="periodo" id="periodo" type="number" class="form-control" placeholder="Período" />
-                <label for="periodo">periodo</label>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-auto p-2">
-              <div className="form-floating">
-                <select name="condicao" id="condicao" class="form-select" aria-label="Dropdown 1">
-                    <option value="menor" selected>Menor que</option>
-                    <option value="maior">Maior que</option>
-                </select>
-                <label for="condicao">condição</label>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-auto p-2">
-              <div className="form-floating">
-                <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" />
-                <label for="valor">valor</label>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-auto p-2">
-                <button type="submit" class="btn btn-primary h-100">Filtrar</button>
-            </div>
-            
-          </form>
+                        <select name="condicao" id="condicao_rsi_lenta" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" onChange={e => setCampoRSILento(e.target.value)} />
+                        <label for="valor">valor</label>
+                      </div>
           </div>
+        </div>
+      </div>
+      <div className="card flex-grow-1 mx-2 h-100">
+      <div className="card-body m-0 p-1">
+        <h4 className="text-start m-2 text-center">
+          ESTOCÁSTICO
+        </h4>
+
+          <div className="d-flex justify-content-between mb-2">
+            <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>RÁPIDA</h8>
+            <div className="form-floating">
+                        <select name="condicao" id="condicao_estocastico_rapida" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" disabled onChange={e => setCampoEstocasticoRapido(e.target.value)} />
+                        <label for="valor">Em desenvolvimento...</label>
+                      </div>
+          </div>
+
+          <div className="d-flex justify-content-between mb-2">
+          <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>LENTA</h8>
+            <div className="form-floating">
+                        <select name="condicao" id="condicao_estocastico_lenta" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" disabled onChange={e => setCampoEstocasticoLento(e.target.value)} />
+                        <label for="valor">Em desenvolvimento...</label>
+                      </div>
+          </div>
+        </div>
+      </div>
+      <div className="card flex-grow-1 me-2 h-100">
+      <div className="card-body m-0 p-1">
+        <h4 className="text-start m-2 text-center">
+          EMA
+        </h4>
+
+          <div className="d-flex justify-content-between mb-2">
+            <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>20 DIAS</h8>
+            <div className="form-floating">
+                        <select name="condicao" id="condicao_ema_20" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" onChange={e => setCampoEMA20(e.target.value)} />
+                        <label for="valor">valor</label>
+                      </div>
+          </div>
+
+          <div className="d-flex justify-content-between mb-2">
+          <h8 className="card text-start d-flex justify-content-center align-items-center fs-9" style={{width: "100px"}}>50 DIAS</h8>
+            <div className="form-floating">
+                        <select name="condicao" id="condicao_ema_50" class="form-select" aria-label="Dropdown 1">
+                            <option value="menor" selected>Menor que</option>
+                            <option value="maior">Maior que</option>
+                        </select>
+                        <label for="condicao">condição</label>
+                      </div>
+                      <div className="form-floating">
+                        <input name="valor" id="valor" type="number" class="form-control" placeholder="Valor" onChange={e => setCampoEMA50(e.target.value)} />
+                        <label for="valor">valor</label>
+                      </div>
+          </div>
+      </div>
+
+      </div>
+    </div>
+
+    {/* Botões */}
+    <div className="d-flex flex-column justify-content-between" style={{ width: '150px' }}>
+        <div className="form-floating h-50 mb-2">
+          <select name="periodo" id="periodo_filtros" class="form-select h-100" aria-label="Dropdown 1">
+              <option value="diario" selected>DIÁRIO</option>
+              <option value="semanal">SEMANAL</option>
+              <option value="mensal">MENSAL</option>
+          </select>
+          <label for="condicao">PERIÓDO</label>
+        </div>
+      <button type="button" className="btn btn-phoenix-primary h-50" onClick={handleSubmitTest}>Filtrar<span data-feather="filter" className="ms-1" style={{height: "16px", width: "16px"}}></span></button>
+    </div>
+  </div>
+</div>
+
+
 
                   <div class="card h-100 mb-2 ms-0" style={{flexGrow: "1"}}>
                   <div class="card-body py-0">
@@ -221,23 +406,31 @@ function Filtros() {
                                 <th className="sort ps-0 align-start" data-sort="users" style={{ width: "300px" }}>
                                     CRIPTOMOEDA
                                 </th>
-                                <th className="sort align-start cursor-pointer" data-sort="users" style={{ width: "250px" }} onClick={() => ordenarDados("precoAtual")}>
+                                <th className="sort align-start cursor-pointer" data-sort="users" style={{ width: "180px" }} >
                                     PREÇO ATUAL 
                                     <i className="fa fa-sort px-2" aria-hidden="true"></i>
                                 </th>
-                                <th className="sort align-middle cursor-pointer" data-sort="users" style={{ width: "200px" }} onClick={() => ordenarDadosPorIndicador("EMA")}>
-                                    EMA
+                                <th className="sort align-middle cursos-pointer" data-sort="users" style={{ width: "180px" }} >
+                                    RSI RÁPIDA
                                     <i className="fa fa-sort px-2" aria-hidden="true"></i>
                                 </th>
-                                <th className="sort align-middle cursos-pointer" data-sort="users" style={{ width: "200px" }} onClick={() => ordenarDadosPorIndicador("RSI")}>
-                                    RSI
+                                <th className="sort align-middle cursos-pointer" data-sort="users" style={{ width: "180px" }} >
+                                    RSI LENTA
                                     <i className="fa fa-sort px-2" aria-hidden="true"></i>
                                 </th>
-                                <th className="sort align-middle cursor-pointer" data-sort="users" style={{ width: "200px" }} onClick={() => ordenarDados("capitalizacaoDeMercado")}>
+                                <th className="sort align-middle cursor-pointer" data-sort="users" style={{ width: "180px" }}>
+                                    EMA 20
+                                    <i className="fa fa-sort px-2" aria-hidden="true"></i>
+                                </th>
+                                <th className="sort align-middle cursor-pointer" data-sort="users" style={{ width: "180px" }}>
+                                    EMA 50
+                                    <i className="fa fa-sort px-2" aria-hidden="true"></i>
+                                </th>
+                                <th className="sort align-middle cursor-pointer" data-sort="users" style={{ width: "200px" }}>
                                     CAPITALIZAÇÃO DE MERCADO
                                     <i className="fa fa-sort px-2" aria-hidden="true"></i>
                                 </th>
-                                <th className="sort align-middle cursor-pointer" data-sort="status" style={{ width: "200px" }} onClick={() => ordenarDados("volumeTotal")}>
+                                <th className="sort align-middle cursor-pointer" data-sort="status" style={{ width: "200px" }}>
                                     VOLUME 24H
                                     <i className="fa fa-sort px-2" aria-hidden="true"></i>
                                 </th>
@@ -245,7 +438,7 @@ function Filtros() {
                         </thead>
                         <tbody className="list" id="table-country-wise-visitors">
                             {/* Simulação dos dados com placeholders */}
-                            {[...Array(13)].map((_, index) => (
+                            {[...Array(10)].map((_, index) => (
                                 <tr key={index}>
                                     <td className="py-2 white-space-nowrap ps-0 country">
                                         <span className="placeholder-glow d-flex">
@@ -278,6 +471,16 @@ function Filtros() {
                                             <span className="placeholder col-5"></span>
                                         </span>
                                     </td>
+                                    <td className="py-2 align-middle users">
+                                        <span className="placeholder-glow d-flex">
+                                            <span className="placeholder col-7"></span>
+                                        </span>
+                                    </td>
+                                    <td className="py-2 align-middle users">
+                                        <span className="placeholder-glow d-flex">
+                                            <span className="placeholder col-7"></span>
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -295,121 +498,208 @@ function Filtros() {
                             CRIPTOMOEDA
                           </th>
 
-                          <th key={"precoAtual1"} class={`sort align-middle cursor-pointer ${campoPrecoAtual === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                          {
+                            // preço atual
+                          }
+
+                          <th key={"precoAtual1"} class={`sort align-middle cursor-pointer ${ordemPrecoAtual === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
                             reiniciarCampo();
-                            setCampoPrecoAtual("alto")
+                            setOrdemPrecoAtual("alto")
                             ordenarDados("precoAtual")
                           }}>
                             PREÇO ATUAL
                             <i class="fa fa-sort px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"precoAtual2"} class={`sort align-middle cursor-pointer ${campoPrecoAtual === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoPrecoAtual("baixo")
+                          <th key={"precoAtual2"} class={`sort align-middle cursor-pointer ${ordemPrecoAtual === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemPrecoAtual("baixo")
                             ordenarDados("precoAtual", true)
                           }}>
                             PREÇO ATUAL
                             <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"precoAtual3"} class={`sort align-middle cursor-pointer ${campoPrecoAtual === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoPrecoAtual("alto")
+                          <th key={"precoAtual3"} class={`sort align-middle cursor-pointer ${ordemPrecoAtual === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemPrecoAtual("alto")
                             ordenarDados("precoAtual")
                           }}>
                             PREÇO ATUAL
                             <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
                           </th>
 
-                          <th key={"ema1"} class={`sort align-middle cursor-pointer ${campoEMA === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                          {
+                            // rsi rapida
+                          }
+
+                          <th key={"rsi11"} class={`sort align-middle cursor-pointer ${ordemRSIRapido === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
                             reiniciarCampo();
-                            setCampoEMA("alto")
-                            ordenarDadosPorIndicador("EMA")
+                            setOrdemRSIRapido("alto");
+                            ordenarDadosPorRSI("rapida", false, periodo, periodo === "mensal" ? 7 : 14)
                           }}>
-                            EMA
+
+                            {periodo === "mensal" ? "RSI RÁPIDA (M)" : periodo === "semanal" ? "RSI RÁPIDA (S)" : periodo === "diario" ? "RSI RÁPIDA (D)" : "RSI RÁPIDA"}
+
                             <i class="fa fa-sort px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"ema2"} class={`sort align-middle cursor-pointer ${campoEMA === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoEMA("baixo")
-                            ordenarDadosPorIndicador("EMA", true)
+                          <th key={"rsi21"} class={`sort align-middle cursor-pointer ${ordemRSIRapido === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemRSIRapido("baixo");
+                            ordenarDadosPorRSI("rapida", true, periodo, periodo === "mensal" ? 7 : 14)
                           }}>
-                            EMA
+
+                            {periodo === "mensal" ? "RSI RÁPIDA (M)" : periodo === "semanal" ? "RSI RÁPIDA (S)" : periodo === "diario" ? "RSI RÁPIDA (D)" : "RSI RÁPIDA"}
+
                             <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"ema3"} class={`sort align-middle cursor-pointer ${campoEMA === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoEMA("alto")
-                            ordenarDadosPorIndicador("EMA")
+                          <th key={"rsi31"} class={`sort align-middle cursor-pointer ${ordemRSIRapido === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemRSIRapido("alto");
+                            ordenarDadosPorRSI("rapida", false, periodo, periodo === "mensal" ? 7 : 14);
                           }}>
-                            EMA
+                            
+                            {periodo === "mensal" ? "RSI RÁPIDA (M)" : periodo === "semanal" ? "RSI RÁPIDA (S)" : periodo === "diario" ? "RSI RÁPIDA (D)" : "RSI RÁPIDA"}
+
                             <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
                           </th>
 
-                          <th key={"rsi1"} class={`sort align-middle cursor-pointer ${campoRSI === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                          {
+                            // rsi lenta
+                          }
+
+                          <th key={"rsi1"} class={`sort align-middle cursor-pointer ${ordemRSILento === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
                             reiniciarCampo();
-                            setCampoRSI("alto")
-                            ordenarDadosPorIndicador("RSI")
+                            setOrdemRSILento("alto")
+                            ordenarDadosPorRSI("lenta", false, periodo, periodo === "mensal" ? 7 : 14)
                           }}>
-                            RSI
+
+                            {periodo === "mensal" ? "RSI LENTO (M)" : periodo === "semanal" ? "RSI LENTO (S)" : periodo === "diario" ? "RSI LENTO (D)" : "RSI LENTO"}
+
                             <i class="fa fa-sort px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"rsi2"} class={`sort align-middle cursor-pointer ${campoRSI === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoRSI("baixo")
-                            ordenarDadosPorIndicador("RSI", true)
+                          <th key={"rsi2"} class={`sort align-middle cursor-pointer ${ordemRSILento === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemRSILento("baixo")
+                            ordenarDadosPorRSI("lenta", true, periodo, periodo === "mensal" ? 7 : 14)
                           }}>
-                            RSI
+                            
+                            {periodo === "mensal" ? "RSI LENTO (M)" : periodo === "semanal" ? "RSI LENTO (S)" : periodo === "diario" ? "RSI LENTO (D)" : "RSI LENTO"}
+
                             <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"rsi3"} class={`sort align-middle cursor-pointer ${campoRSI === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoRSI("alto")
-                            ordenarDadosPorIndicador("RSI")
+                          <th key={"rsi3"} class={`sort align-middle cursor-pointer ${ordemRSILento === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemRSILento("alto")
+                            ordenarDadosPorRSI("lenta", false, periodo, periodo === "mensal" ? 7 : 14)
                           }}>
-                            RSI
+                            
+                            {periodo === "mensal" ? "RSI LENTO (M)" : periodo === "semanal" ? "RSI LENTO (S)" : periodo === "diario" ? "RSI LENTO (D)" : "RSI LENTO"}
+
                             <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
                           </th>
 
-                          <th key={"capitalizacao1"} class={`sort align-middle cursor-pointer ${campoCapitalizacao === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                          {
+                            // ema 20
+                          }
+
+                          <th key={"ema11"} class={`sort align-middle cursor-pointer ${ordemEMA20 === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
                             reiniciarCampo();
-                            setCampoCapitalizacao("alto")
+                            setOrdemEMA20("alto")
+                            ordenarDadosPorEMA(20)
+                          }}>
+                            EMA 20 (D)
+                            <i class="fa fa-sort px-2" aria-hidden="true"></i>
+                          </th>
+                          <th key={"ema21"} class={`sort align-middle cursor-pointer ${ordemEMA20 === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemEMA20("baixo")
+                            ordenarDadosPorEMA(20, true)
+                          }}>
+                            EMA 20 (D)
+                            <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
+                          </th>
+                          <th key={"ema31"} class={`sort align-middle cursor-pointer ${ordemEMA20 === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemEMA20("alto")
+                            ordenarDadosPorEMA(20)
+                          }}>
+                            EMA 20 (D)
+                            <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
+                          </th>
+
+                          {
+                            // ema 50
+                          }
+
+                          <th key={"ema1"} class={`sort align-middle cursor-pointer ${ordemEMA50 === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            reiniciarCampo();
+                            setOrdemEMA50("alto")
+                            ordenarDadosPorEMA(50)
+                          }}>
+                            EMA 50 (D)
+                            <i class="fa fa-sort px-2" aria-hidden="true"></i>
+                          </th>
+                          <th key={"ema2"} class={`sort align-middle cursor-pointer ${ordemEMA50 === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemEMA50("baixo")
+                            ordenarDadosPorEMA(50, true)
+                          }}>
+                            EMA 50 (D)
+                            <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
+                          </th>
+                          <th key={"ema3"} class={`sort align-middle cursor-pointer ${ordemEMA50 === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "180px"}} onClick={() => {
+                            setOrdemEMA50("alto")
+                            ordenarDadosPorEMA(50)
+                          }}>
+                            EMA 50 (D)
+                            <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
+                          </th>
+
+                          {
+                            // capitalização de mercado
+                          }
+
+                          <th key={"capitalizacao1"} class={`sort align-middle cursor-pointer ${ordemCapitalizacao === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                            reiniciarCampo();
+                            setOrdemCapitalizacao("alto")
                             ordenarDados("capitalizacaoDeMercado")
                           }}>
                             CAPITALIZAÇÃO DE MERCADO
                             <i class="fa fa-sort px-2" aria-hidden="true"></i>
                           </th>
 
-                          <th key={"capitalizacao2"} class={`sort align-middle cursor-pointer ${campoCapitalizacao === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoCapitalizacao("baixo")
+                          <th key={"capitalizacao2"} class={`sort align-middle cursor-pointer ${ordemCapitalizacao === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                            setOrdemCapitalizacao("baixo")
                             ordenarDados("capitalizacaoDeMercado", true)
                           }}>
                             CAPITALIZAÇÃO DE MERCADO
                             <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"capitalizacao3"} class={`sort align-middle cursor-pointer ${campoCapitalizacao === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoCapitalizacao("alto")
+                          <th key={"capitalizacao3"} class={`sort align-middle cursor-pointer ${ordemCapitalizacao === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                            setOrdemCapitalizacao("alto")
                             ordenarDados("capitalizacaoDeMercado")
                           }}>
                             CAPITALIZAÇÃO DE MERCADO
                             <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
                           </th>
+
+                          {
+                            // volume 24h
+                          }
                           
-                          <th key={"campoVolume1"} class={`sort align-middle cursor-pointer ${campoVolume === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                          <th key={"campoVolume1"} class={`sort align-middle cursor-pointer ${ordemVolume === "padrao" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
                             reiniciarCampo();
-                            setCampoVolume("alto")
+                            setOrdemVolume("alto")
                             ordenarDados("volumeTotal")
                           }}>
                             VOLUME 24H
                             <i class="fa fa-sort px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"campoVolume2"} class={`sort align-middle cursor-pointer ${campoVolume === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoVolume("baixo")
+                          <th key={"campoVolume2"} class={`sort align-middle cursor-pointer ${ordemVolume === "alto" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                            setOrdemVolume("baixo")
                             ordenarDados("volumeTotal", true)
                           }}>
                             VOLUME 24H
                             <i class="fa fa-sort-asc px-2" aria-hidden="true"></i>
                           </th>
-                          <th key={"campoVolume3"} class={`sort align-middle cursor-pointer ${campoVolume === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
-                            setCampoVolume("alto")
+                          <th key={"campoVolume3"} class={`sort align-middle cursor-pointer ${ordemVolume === "baixo" ? "" : "d-none" }`} data-sort="status" style={{width: "200px"}} onClick={() => {
+                            setOrdemVolume("alto")
                             ordenarDados("volumeTotal")
                           }}>
                             VOLUME 24H
                             <i class="fa fa-sort-desc px-2" aria-hidden="true"></i>
                           </th>
+
                         </tr>
                       </thead>
                       <tbody class="list" id="table-country-wise-visitors">
@@ -417,27 +707,48 @@ function Filtros() {
                               return (
                               <tr>
                                   <td class="py-2 white-space-nowrap ps-0 country"><div class="d-flex align-items-center text-primary py-md-1 py-xxl-0" href="#!"><img src={dado.imagem} alt="" width="20" />
-                                      <h6 class="mb-0 ps-3 fw-bold fs-9">{dado.nome.length > 25 ? `${dado.nome.slice(0, 25)}...`: dado.nome}</h6>
+                                      <h6 class="mb-0 ps-3 fw-bold fs-9">{dado.nome.length > 22 ? `${dado.nome.slice(0, 22)}...`: dado.nome}</h6>
                                   </div></td>
+
                                   <td class="py-2 align-middle users">
                                   <h6>{new Intl.NumberFormat('en-US', { 
                                     style: 'currency', 
                                     currency: 'USD',
-                                    minimumFractionDigits: dado.precoAtual < 0.01 ? 6 : 2,
-                                    maximumFractionDigits: dado.precoAtual < 0.01 ? 8 : 2
+                                    minimumFractionDigits: dado.precoAtual < 0.01 ? 8 : 2,
+                                    maximumFractionDigits: dado.precoAtual < 0.01 ? 10 : 2
                                     }).format(dado.precoAtual)}</h6>
                                   </td>
-                                  <td class="py-2 align-middle users">
-                                  <h6>{new Intl.NumberFormat('en-US', { 
-                                    style: 'currency', 
-                                    currency: 'USD',
-                                    minimumFractionDigits: dado.EMA.diario[14] < 0.01 ? 6 : 2,
-                                    maximumFractionDigits: dado.EMA.diario[14] < 0.01 ? 8 : 2
-                                    }).format(dado.EMA.diario[14] ?? 0)}</h6>
-                                  </td>
+
                                   <td>
-                                  <h6 class="mb-0 fw-bold fs-9">{(dado.RSI.diario["14"] ?? 0).toFixed(2)} - {classificarRSI(dado.RSI.diario[14])}</h6>
+                                    <h6 class="mb-0 fw-bold fs-9">{(dado["RSI"]["rapida"][periodo][periodo === "mensal" ? 7 : 14] ?? 0).toFixed(2)} - {classificarRSI(dado["RSI"]["rapida"][periodo][periodo === "mensal" ? 7 : 14] ?? 0)}</h6>
                                   </td>
+
+                                  <td>
+                                    <h6 class="mb-0 fw-bold fs-9">{(dado["RSI"]["lenta"][periodo][periodo === "mensal" ? 7 : 14] ?? 0).toFixed(2)} - {classificarRSI(dado["RSI"]["lenta"][periodo][periodo === "mensal" ? 7 : 14] ?? 0)}</h6>
+                                  </td>
+
+                                  <td class="py-2 align-middle users">   
+                                    <h6>{new Intl.NumberFormat('en-US', { 
+                                      style: 'currency', 
+                                      currency: 'USD',
+                                      minimumFractionDigits: dado.EMA?.diario[20] < 0.01 ? 8 : 2,
+                                      maximumFractionDigits: dado.EMA?.diario[20] < 0.01 ? 10 : 2
+                                      }).format(dado.EMA?.diario[20] ?? 0)}
+                                    </h6>
+                                  </td>
+
+                                  <td class="py-2 align-middle users">   
+                                    <h6>{new Intl.NumberFormat('en-US', { 
+                                      style: 'currency', 
+                                      currency: 'USD',
+                                      minimumFractionDigits: dado.EMA?.diario[50] < 0.01 ? 8 : 2,                                     
+                                      maximumFractionDigits: dado.EMA?.diario[50] < 0.01 ? 10 : 2
+                                      }).format(dado.EMA?.diario[50] ?? 0)}
+                                    </h6>
+                                  </td>
+
+                                  
+
                                   <td class="py-2 align-middle users">
                                   <h6>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(dado.capitalizacaoDeMercado)}</h6>
                                   </td>

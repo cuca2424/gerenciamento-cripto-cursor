@@ -25,6 +25,7 @@ function Dashboard() {
   const [dadosDashboard, setDadosDashboard] = useState();
   const [dadosGraficoPizza, setDadosGraficoPizza] = useState();
   const [dadosGraficoLinha, setDadosGraficoLinha] = useState();
+  const [graficoLinhaAtual, setGraficoLinhaAtual] = useState();
 
   const [carteiraSelecionada, setCarteiraSelecionada] = useState();
   const [dadosAporteSaldo, setDadosAporteSaldo] = useState([]);
@@ -39,13 +40,15 @@ function Dashboard() {
     try {
       const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteiras-detalhadas/${id_usuario}`);
 
-      if (resposta.ok) {
+      const resposta2 = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/aporte-saldo/${id_usuario}`);
+
+      if (resposta.ok && resposta2.ok) {
         const dados = await resposta.json();
+        const dados2 = await resposta2.json();
         setCarteiras(dados.carteirasComDetalhes);
         setDadosGerais(dados.dadosTotais);
         setResultadoGeral(dados.resultadoGeral);
-        console.log("teste de dados");
-        console.log(dados)
+        setDadosGraficoLinha(dados2);
       }
     } catch (err) {
       console.log("Erro ao buscar carteiras: ", err);
@@ -66,8 +69,20 @@ function Dashboard() {
     }
   }
 
+  const buscarDadosAporteSaldo = async () => {
+    try {
+      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/aporte-saldo/${id_usuario}`);
+
+      if (resposta.ok) {
+        const dados = await resposta.json();
+        setDadosGraficoLinha(dados);
+      }
+    } catch (err) {
+      console.log("Erro ao buscar dados de aporte e saldo: ", err)
+    }
+  }
+
   // atualizarDados();
-  console.log("usuario => ", id_usuario)
 
   function selecionarCarteira() {
     const id_carteira = document.getElementById("option-carteiras").value;
@@ -75,10 +90,7 @@ function Dashboard() {
     if (id_carteira === "todas_carteiras") {
       setDadosDashboard(dadosGerais);
       setDadosGraficoPizza(resultadoGeral);
-      setDadosGraficoLinha({
-        "aportes": dadosGerais.aportes,
-        "saldo": dadosGerais.saldo
-      })
+      setGraficoLinhaAtual(dadosGraficoLinha?.geral);
     }
 
     const carteiraEscolhida = carteiras?.find(carteira => carteira._id === id_carteira);
@@ -90,11 +102,8 @@ function Dashboard() {
         "lucro": carteiraEscolhida.lucroOuPrejuizo
       });
       setDadosGraficoPizza(carteiraEscolhida.resultado);
-      setDadosGraficoLinha({
-        "aportes": carteiraEscolhida.totalAportesCarteira,
-        "saldo": carteiraEscolhida.valorTotalCarteira
-      })
       setCarteiraSelecionada(carteiraEscolhida);
+      setGraficoLinhaAtual(dadosGraficoLinha[id_carteira]);
     }
   }
 
@@ -269,7 +278,7 @@ function Dashboard() {
               </div>
 
               <div className="col-8 h-50 col-sm-5 h-sm-100 border-end-xl">
-                <AporteSaldo3 dados={{aportes: [0, 0, 0, 0, 0, dadosGraficoLinha?.aportes], saldos: [0, 0, 0, 0, 0, dadosGraficoLinha?.saldo]}} />
+                <AporteSaldo3 dados={graficoLinhaAtual ?? dadosGraficoLinha?.geral} />
               </div>
 
 
