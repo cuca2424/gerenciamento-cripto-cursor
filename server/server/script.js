@@ -275,7 +275,7 @@ async function main() {
         //console.log("colocando precos no banco de dados.")
         //await colocarPrecosBancoDeDados(todasCriptos, todosIDS);
         //console.log("atualizando precos no banco de dados.");
-        await atualizarPrecosBancoDeDados(todasCriptos);
+        //await atualizarPrecosBancoDeDados(todasCriptos);
 
         const dadosParaAtualizarBandoDeDados = []
 

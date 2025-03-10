@@ -1,27 +1,21 @@
 function Notificacoes() {
     return (
-        <div className="col-12">
-            <div className="row altura">
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4 bg-white">
-                    <h1>bloco1</h1>
-                </div>
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-                    bloco 1
-                </div>
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-                    bloco 1
-                </div>
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-                    bloco 1
-                </div>
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-                    bloco 1
-                </div>
-                <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-                    bloco 1
-                </div>
-            </div>
+        <div className="container">
+  <div className="d-flex overflow-auto" style={{ whiteSpace: "nowrap" }}>
+    {Array.from({ length: 10 }).map((_, index) => (
+      <div key={index} className="col-3 flex-shrink-0 p-2">
+        <div className="card shadow-sm" style={{ width: "200px", height: "130px" }}>
+          <div className="card-body d-flex align-items-center justify-content-center">
+            <h5 className="card-title">Card {index + 1}</h5>
+          </div>
         </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+
+
     )
 }
 

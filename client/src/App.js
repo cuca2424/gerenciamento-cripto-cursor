@@ -15,6 +15,7 @@ import Sucesso from "./paginas/PosCheckout/Sucesso";
 import Cancelado from "./paginas/PosCheckout/Cancelado";
 import Teste01 from "./paginas/Testes/Teste01";
 import Notificacoes from "./paginas/Privadas/Notificacoes";
+import Estrategias from "./paginas/Privadas/Estrategias";
 
 
 const Privado = ({ Item }) => {
@@ -49,7 +50,8 @@ function App() {
         <UserProvider>
             <Router>
                 <Routes>
-                    <Route path="/" element={<Layout componente={<Dashboard />}/>}/>
+                    <Route path="/" element={< Privado Item={() => <Layout componente={<Dashboard />}/>}/>}/>
+                    <Route path="/estrategias" element={< Privado Item={() => <Layout componente={<Estrategias />}/>}/>}/>
                     <Route path="/filtros" element={< Privado Item={() => <Layout componente={<Filtros />}/>}/>}/>
                     <Route path="/imposto_de_renda" element={< Privado Item={() => <Layout componente={<ImpostoDeRenda />}/>}/>}/>
                     <Route path="/sentimento_de_mercado" element={< Privado Item={() => <Layout componente={<SentimentoDeMercado />}/>}/>}/>

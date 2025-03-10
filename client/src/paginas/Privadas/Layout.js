@@ -136,6 +136,14 @@ function Layout({componente}) {
                   <p class="navbar-vertical-label">Monitoramento
                   </p>
 
+                  {/* item do menu lateral - Estratégias */}
+                  <div class="nav-item-wrapper">
+                    <Link to={"/estrategias"} className={rotaAtual === "/estrategias" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Estratégias", rota: "/estrategias", icone: "target"})}>
+                      <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="target" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Estratégias</span></span>
+                      </div>
+                    </Link>
+                  </div>
+
                   {/* item do menu lateral - Filtros */}
                   <div class="nav-item-wrapper">
                     <Link to={"/filtros"} className={rotaAtual === "/filtros" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Filtros", rota: "/filtros", icone: "filter"})}>

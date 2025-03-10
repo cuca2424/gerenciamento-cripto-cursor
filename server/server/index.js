@@ -836,3 +836,31 @@ const acumularAportes = (transacoes, precos) => {
      res.status(200).send(responseComGeral);
 });
 
+
+app.get("/estrategias/:id_usuario", async (req, res) => {
+    const id_usuario = req.params.id_usuario;
+
+    const estrategias = await db.collection("estrategias").find({ id_usuario: { $in: ["geral", id_usuario] } }).toArray();
+
+    res.status(200).send(estrategias);
+});
+
+app.post("/estrategias", async (req, res) => {
+    const { nome, string_filtro, id_usuario, descricao, periodo } = req.body;
+    console.log("dados requisição => ", nome, string_filtro, id_usuario);
+
+    if (!nome || !string_filtro || !id_usuario || !descricao || !periodo) {
+        res.status(400).send("Dados inválidos ou insuficientes.");
+    }
+
+    await db.collection("estrategias").insertOne({
+        nome: nome,
+        id_usuario: id_usuario,
+        periodo: periodo,
+        string_filtro: string_filtro,
+        descricao: descricao
+    })
+
+    res.status(200).send("Estratégia cadastrada no banco de dados.");
+});
+

@@ -77,7 +77,7 @@ function Carteiras({carteiras = null, funcaoRecarregar = () => console.log("test
     }
 
     return(
-        <div class="card h-100 bg-dark">
+        <div class="card h-100">
           <div className="carteiras h-100 d-flex flex-column">
             <div class="mb-0 border-0 d-flex justify-content-between align-items-center">
                 <div className="m-3">
