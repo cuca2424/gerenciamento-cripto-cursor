@@ -560,8 +560,8 @@ app.post("/criar-sessao-checkout", async (req, res) => {
             },
           ],
           mode: 'subscription',
-          success_url: `http://localhost:3001/sucesso`, 
-          cancel_url: `http://localhost:3001/cancelado`, 
+          success_url: `http://147.93.67.125:3002/sucesso`, 
+          cancel_url: `http://147.93.67.125:3002/cancelado`, 
           metadata: {
             nome: nome,
             email: email,
