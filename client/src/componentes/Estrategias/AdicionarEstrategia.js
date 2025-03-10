@@ -220,7 +220,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" id="valor_rsi_rapida" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" id="valor_rsi_rapida" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -232,7 +232,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" id="valor_rsi_lenta" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" id="valor_rsi_lenta" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -255,7 +255,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" id="valor_ema_20" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" id="valor_ema_20" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -267,7 +267,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" id="valor_ema_50" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" id="valor_ema_50" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -290,7 +290,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -302,7 +302,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -325,7 +325,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -337,7 +337,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input type="number" min="0" disabled className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
