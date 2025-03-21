@@ -259,112 +259,125 @@ function Estrategias() {
       }
     }, [id_usuario]);
 
-    useEffect(() => {
-      window.feather.replace(); // Atualiza os ícones ao mudar as estratégias
-    }, [estrategias]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.feather.replace(); // Ajuste os ícones somente após o componente ser montado
+    }, 100); // Espera 100ms antes de executar
+  
+    return () => clearTimeout(timer); // Limpa o timeout quando o componente desmonta ou `estrategias` muda
+  }, [estrategias]);
+  
 
     const [notificacoesAtivas, setNotificacoesAtivas] = useState({});
     const [ativo, setAtivo] = useState(false);
 
-    const toggleNotificacao = (id) => {
-      setNotificacoesAtivas((prev) => ({
-        ...prev,
-        [id]: !prev[id], // Alterna apenas o estado da estratégia clicada
-      }));
-    };
+    const toggleNotificacao = async (id_estrategia, id_usuario) => {
+      console.log("funcao");
+      try {
+          const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/estrategias/notificacao/${id_estrategia}/${id_usuario}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" }
+          });
+  
+          const data = await response.json();
+  
+          if (!response.ok) {
+              console.error("Erro ao atualizar notificação:", data);
+              return;
+          }
+  
+      } catch (erro) {
+          console.error("Erro na requisição:", erro);
+      } finally {
+        buscarEstrategias();
+      }
+  };
+  
 
     if (erro) {
         return <h2>Erro: {erro}</h2>;
     }
 
     return(
-        <div class="col-12 altura" style={{display: "flex", flexDirection: "column"}}>
-          <div className="row align-items-center mx-0 mb-3 mt-2 d-flex">
-  <div className="d-flex w-100 mx-0 p-0">
-    {/* Cards */}
-    <div className="row w-100 m-0 p-0 gx-3">
-      {
-        estrategias?.map(estrategia => {
-          return(
-            <div className="col-6 col-md-4 col-xl-3">
-  <div
-    className={`card ${ativo === estrategia._id ? "border-primary" : ""}`}
-    style={{
-      height: "130px", // Aumentei a altura para acomodar o novo texto
-      position: "relative",
-      cursor: "pointer",
-      borderWidth: ativo ? "2px" : "",
-    }}
-    onClick={() => {
-      setAtivo(estrategia._id);
-      setPeriodo(estrategia.periodo);
-      buscarDados(estrategia.string_filtro);
-    }}
-  >
-    <div
-      className="card-body m-0 d-flex justify-content-between align-items-center p-2"
-      style={{ position: "absolute", top: "10px", left: "10px", right: "10px" }}
-    >
-      <h4 className="text-body">{estrategia.nome.slice(0, 30)}</h4>
-      <span
-        className="feather"
-        style={{
-          cursor: "pointer",
-          color: notificacoesAtivas[estrategia._id] ? "blue" : "gray",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleNotificacao(estrategia._id);
-        }}
-      >
-        <i data-feather="bell"></i>
-      </span>
-    </div>
+      <div className="col-12 altura" style={{ display: "flex", flexDirection: "column" }}>
+      <div className="row align-items-center mx-0 mb-3 mt-2 d-flex">
+        <div className="d-flex w-100 mx-0 p-0 overflow-x-auto custom-scrollbar" style={{ paddingBottom: "12px", color: "black" }}>
+          {/* Cards */}
+          <div className="row w-100 m-0 p-0 gx-2" style={{ flexWrap: "nowrap" }}>
 
-    {/* Texto adicionado abaixo */}
-    <div
-      className="p-2"
-      style={{
-        position: "absolute",
-        top: "50px",
-        left: "10px",
-        right: "10px",
-        fontSize: "14px"
-      }}
-    >
-     {estrategia.descricao}
-    </div>
-  </div>
-</div>
+            {/* Card de adicionar estratégia */}
+            <div className={`col-6 col-md-4 col-xl-3 flex-shrink-0 ${estrategias?.length > 3 ? "" : ""}`}>
+              <div
+                className="card d-flex justify-content-center align-items-center"
+                data-bs-toggle="modal"
+                data-bs-target="#modalAdicionarEstrategia"
+                style={{ height: "130px", cursor: "pointer" }}
+              >
+                <span className="feather">
+                  <i
+                    data-feather="plus"
+                    style={{ width: "42px", height: "42px" }} // Ajuste o tamanho aqui
+                  ></i>
+                </span>
+              </div>
+            </div>
 
-          )
-        })
-      }
-
+            {estrategias?.map((estrategia) => (
+              <div className="col-6 col-md-4 col-xl-3 flex-shrink-0 mb-3" key={estrategia._id}>
+                <div
+                  className={`card ${ativo === estrategia._id ? "border-primary" : ""}`}
+                  style={{
+                    height: "130px", // Aumentei a altura para acomodar o novo texto
+                    position: "relative",
+                    cursor: "pointer",
+                    borderWidth: ativo ? "2px" : "",
+                  }}
+                  onClick={() => {
+                    setAtivo(estrategia._id);
+                    setPeriodo(estrategia.periodo);
+                    buscarDados(estrategia.string_filtro);
+                  }}
+                >
+                  <div
+                    className="card-body m-0 d-flex justify-content-between align-items-center p-2"
+                    style={{ position: "absolute", top: "10px", left: "10px", right: "10px" }}
+                  >
+                    <h4 className="text-body">{estrategia.nome.slice(0, 30)}</h4>
+                    <span
+                      className="feather"
+                      style={{
+                        cursor: "pointer",
+                        color: estrategia.id_usuario === "geral" ? (estrategia.notificacoes_usuarios?.[id_usuario] ? "blue" : "gray") : (estrategia.notificacao ? "blue" : "gray"),
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation(); 
+                        toggleNotificacao(estrategia._id, id_usuario);
+                      }}
+                    >
+                      <i data-feather="bell"></i>
+                    </span>
+                  </div>
     
-
-
-<div className={`col-6 col-md-4 col-xl-3 ${estrategias?.length > 3 ? "d-none" : ""}`}>
-  <div
-    className="card d-flex justify-content-center align-items-center"
-    data-bs-toggle="modal"
-    data-bs-target="#modalAdicionarEstrategia"
-    style={{ height: "130px", cursor: "pointer" }}
-  >
-    <span className="feather">
-      <i
-        data-feather="plus"
-        style={{ width: "42px", height: "42px" }} // Ajuste o tamanho aqui
-      ></i>
-    </span>
-  </div>
-</div>
-
-
-</div>
-
-  </div>
-</div>
+                  {/* Texto adicionado abaixo */}
+                  <div
+                    className="p-2"
+                    style={{
+                      position: "absolute",
+                      top: "50px",
+                      left: "10px",
+                      right: "10px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {estrategia.descricao}
+                  </div>
+                </div>
+              </div>
+            ))}
+  
+          </div>
+        </div>
+      </div>
 
 
 

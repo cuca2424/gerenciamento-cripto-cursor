@@ -1,7 +1,30 @@
 import { useState } from "react";
+import { useEffect } from "react";
 
 function CriarCarteira( {botaoEnviar, mensagemErro} ) {
-  const [nomeCarteira, setNomeCarteira] = useState("")
+  const [erro, setErro] = useState(mensagemErro);
+  const [nomeCarteira, setNomeCarteira] = useState("");
+
+  useEffect(() => {
+    setErro(mensagemErro);
+  }, [mensagemErro])
+
+  // apagar campos quando fechar modal
+  useEffect(() => {
+    const modalElement = document.getElementById("modalCriarCarteira");
+
+    const handleClose = () => {
+      setNomeCarteira("");
+      setErro("");
+    };
+
+    modalElement.addEventListener("hidden.bs.modal", handleClose);
+
+    return () => {
+      modalElement.removeEventListener("hidden.bs.modal", handleClose);
+    };
+  }, []);
+
     return (
     <div
         className="modal fade"
@@ -34,7 +57,7 @@ function CriarCarteira( {botaoEnviar, mensagemErro} ) {
                                     </div>
                                     <div className="mt-3 text-center align-items-center">
 
-                                    <h6 className="text-danger mb-3">{mensagemErro}</h6>
+                                    <h6 className="text-danger mb-3">{erro}</h6>
 
                                     <button
                                         type="button"

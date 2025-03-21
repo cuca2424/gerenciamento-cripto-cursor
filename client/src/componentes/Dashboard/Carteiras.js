@@ -159,7 +159,7 @@ function Carteiras({carteiras = null, funcaoRecarregar = () => console.log("test
                     <th className="text-start" style={{ minWidth: "100px" }}>
                         NOME DA CARTEIRA
                     </th>
-                    <th className="text-end">VALOR TOTAL</th>
+                    <th className="text-end pe-2">VALOR TOTAL</th>
                     </tr>
                 </thead>
                 <tbody className="list" id="table-country-wise-visitors">
@@ -169,7 +169,7 @@ function Carteiras({carteiras = null, funcaoRecarregar = () => console.log("test
                         <tr key={carteira._id}>
                             <td className="py-2 white-space-nowrap ps-0 country">
                             <h6
-                                className="mb-0 ps-3 fw-bold fs-9 cursor-pointer"
+                                className="mb-0 ps-2 fw-bold fs-9 cursor-pointer"
                                 data-bs-toggle="modal"
                                 data-bs-target="#modalCarteira"
                                 onClick={() => abrirModal(carteira)}
@@ -177,7 +177,7 @@ function Carteiras({carteiras = null, funcaoRecarregar = () => console.log("test
                                 {carteira.nome}
                             </h6>
                             </td>
-                            <td className="py-2 align-middle text-end">
+                            <td className="py-2 align-middle text-end pe-2">
                             <h6>
                                 {carteira.valorTotalCarteira.toLocaleString('en', { style: 'currency', currency: 'USD' })}
                             </h6>

@@ -272,10 +272,11 @@ async function main() {
 
     if (todasCriptos.length > 0) {
         console.log(todasCriptos.length + " criptomoedas...");
+
         //console.log("colocando precos no banco de dados.")
         //await colocarPrecosBancoDeDados(todasCriptos, todosIDS);
-        //console.log("atualizando precos no banco de dados.");
-        //await atualizarPrecosBancoDeDados(todasCriptos);
+        console.log("atualizando precos no banco de dados.");
+        await atualizarPrecosBancoDeDados(todasCriptos);
 
         const dadosParaAtualizarBandoDeDados = []
 

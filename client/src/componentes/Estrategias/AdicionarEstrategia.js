@@ -39,26 +39,47 @@ function AdicionarEstrategia({funcaoRecarregar}) {
         }
       }
 
+      const formatarFormulario = () => {
+        setMensagemErroAdicionarAporte("");
+        
+        // Infos principais
+        setNomeEstrategia("");
+        setPeriodoFiltros("diario");
+        
+        // Condições
+        setCondicaoRSIrapido("maior");
+        setCondicaoRSILento("maior");
+        setCondicaoEMA20("maior");
+        setCondicaoEMA50("maior");
+    
+        // Valores
+        setValorRSIrapido("");
+        setValorRSILento("");
+        setValorEMA20("");
+        setValorEMA50("");
+    };
+
+
+
+    // infos principais
+    const [nomeEstrategia, setNomeEstrategia] = useState("");
+    const [periodoFiltros, setPeriodoFiltros] = useState("diario");
+
+    // condicoes
+    const [condicaoRSIrapido, setCondicaoRSIrapido] = useState("maior");
+    const [condicaoRSILento, setCondicaoRSILento] = useState("maior");
+    const [condicaoEMA20, setCondicaoEMA20] = useState("maior");
+    const [condicaoEMA50, setCondicaoEMA50] = useState("maior");
+
+    // valores
+    const [valorRSIrapido, setValorRSIrapido] = useState("");
+    const [valorRSILento, setValorRSILento] = useState("");
+    const [valorEMA20, setValorEMA20] = useState("");
+    const [valorEMA50, setValorEMA50] = useState("");
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // pegar valores campos
-
-        // infos principais
-        const nomeEstrategia = document.getElementById("nome_estrategia")?.value;
-        const periodoFiltros = document.getElementById("periodo_filtros")?.value;
-
-        // condicoes
-        const condicaoRSIrapido = document.getElementById("condicao_rsi_rapida")?.value;
-        const condicaoRSILento = document.getElementById("condicao_rsi_lenta")?.value;
-        const condicaoEMA20 = document.getElementById("condicao_ema_20")?.value;
-        const condicaoEMA50 = document.getElementById("condicao_ema_50")?.value;
-
-        // valores
-        const valorRSIrapido = document.getElementById("valor_rsi_rapida")?.value;
-        const valorRSILento = document.getElementById("valor_rsi_lenta")?.value;
-        const valorEMA20 = document.getElementById("valor_ema_20")?.value;
-        const valorEMA50 = document.getElementById("valor_ema_50")?.value;
-
+    
         console.log("Nome da estratégia => ", nomeEstrategia);
         console.log("Périodo filtros => ", periodoFiltros);
         console.log("RSI Rápido => ", condicaoRSIrapido, valorRSIrapido);
@@ -138,15 +159,28 @@ function AdicionarEstrategia({funcaoRecarregar}) {
               })
             if (resposta.ok) {
                 closeModal("modalAdicionarEstrategia");
+                formatarFormulario();
                 funcaoRecarregar();
                 window.feather.replace();
             }
           } catch (err) {
             console.log("Erro ao buscar dados adicionais: ", err);
           }
+        }
+
+
+        // apagar campos quando fechar modal
+        useEffect(() => {
+            const modalElement = document.getElementById("modalAdicionarEstrategia");
+         
+            modalElement.addEventListener("hidden.bs.modal", formatarFormulario);
+        
+            return () => {
+            modalElement.removeEventListener("hidden.bs.modal", formatarFormulario);
+            };
+        }, []);
 
         
-    }
 
     return(
         <div className="adicionarAporte">
@@ -183,6 +217,8 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         type="text" 
                                                         className="form-control" 
                                                         placeholder="Nome da estratégia"
+                                                        value={nomeEstrategia}
+                                                        onChange={e => setNomeEstrategia(e.target.value)}
                                                     />
                                                     <label htmlFor="nomeCarteira">Nome da estratégia</label>
                                                     </div>
@@ -191,7 +227,11 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                 {/* Dropdown ocupando 1/3 da linha */}
                                                 <div className="col-4 pe-4 ps-2">
                                                     <div className="form-floating">
-                                                    <select className="form-select" id="periodo_filtros">
+                                                    <select 
+                                                        className="form-select" 
+                                                        id="periodo_filtros"
+                                                        value={periodoFiltros}
+                                                        onChange={e => setPeriodoFiltros(e.target.value)}>
                                                         <option value="diario">Diário</option>
                                                         <option value="semanal">Semanal</option>
                                                         <option value="mensal">Mensal</option>
@@ -214,13 +254,27 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                         <span className="form-control text-center" style={{ maxWidth: "100px" }}>RÁPIDO</span>
 
                                                         {/* Caixa de seleção */}
-                                                        <select name="condição" id="condicao_rsi_rapida" className="form-select" style={{ maxWidth: "120px" }}>
+                                                        <select 
+                                                            name="condição"
+                                                            id="condicao_rsi_rapida"
+                                                            className="form-select"
+                                                            value={condicaoRSIrapido}
+                                                            onChange={e => setCondicaoRSIrapido(e.target.value)}
+                                                            style={{ maxWidth: "120px" }}>
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" min="0" id="valor_rsi_rapida" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input 
+                                                            type="number"
+                                                            min="0" 
+                                                            id="valor_rsi_rapida"
+                                                             className="form-control" 
+                                                             placeholder="Valor" 
+                                                             value={valorRSIrapido}
+                                                             onChange={e => setValorRSIrapido(e.target.value)}
+                                                             style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -228,11 +282,25 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                     <div className="col-12 col-md-6 m-0 p-0 pe-2 ps-2">
                                                         <div className="d-flex align-items-center gap-2 mb-3">
                                                         <span className="form-control text-center" style={{ maxWidth: "100px" }}>LENTO</span>
-                                                        <select className="form-select" id="condicao_rsi_lenta" placeholder="condição" style={{ maxWidth: "120px" }}>
+                                                        <select
+                                                            className="form-select" 
+                                                            id="condicao_rsi_lenta" 
+                                                            placeholder="condição" 
+                                                            value={condicaoRSILento}
+                                                            onChange={e => setCondicaoRSILento(e.target.value)}
+                                                            style={{ maxWidth: "120px" }}>
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" min="0" id="valor_rsi_lenta" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input 
+                                                            type="number" 
+                                                            min="0"
+                                                             id="valor_rsi_lenta"
+                                                              className="form-control" 
+                                                              placeholder="Valor" 
+                                                              value={valorRSILento}
+                                                              onChange={e => setValorRSILento(e.target.value)}
+                                                              style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -245,17 +313,31 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                     {/* Bloco 1 */}
                                                     <div className="col-12 col-md-6 pe-2 ps-2">
                                                         <div className="d-flex align-items-center gap-2 mb-3 w-100">
-                                                        {/* Caixa fixa com "RÁPIDA" */}
+                                                        {/* Caixa fixa com "20D" */}
                                                         <span className="form-control text-center" style={{ maxWidth: "100px" }}>20D</span>
 
                                                         {/* Caixa de seleção */}
-                                                        <select name="condição" id="condicao_ema_20" className="form-select" style={{ maxWidth: "120px" }}>
+                                                        <select
+                                                            name="condição"
+                                                             id="condicao_ema_20" 
+                                                             className="form-select" 
+                                                             value={condicaoEMA20}
+                                                             onChange={e => setCondicaoEMA20(e.target.value)}
+                                                             style={{ maxWidth: "120px" }}>
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
 
                                                         {/* Campo numérico */}
-                                                        <input type="number" min="0" id="valor_ema_20" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+                                                        <input
+                                                            type="number"
+                                                             min="0" 
+                                                             id="valor_ema_20" 
+                                                             className="form-control" 
+                                                             placeholder="Valor" 
+                                                             value={valorEMA20}
+                                                             onChange={e => setValorEMA20(e.target.value)}
+                                                             style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
 
@@ -263,11 +345,26 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                     <div className="col-12 col-md-6 pe-2 ps-2">
                                                         <div className="d-flex align-items-center gap-2 mb-3">
                                                         <span className="form-control text-center" style={{ maxWidth: "100px" }}>50D</span>
-                                                        <select className="form-select" id="condicao_ema_50" placeholder="condição" style={{ maxWidth: "120px" }}>
+
+                                                        <select
+                                                            className="form-select"
+                                                             id="condicao_ema_50" 
+                                                             placeholder="condição" 
+                                                             value={condicaoEMA50}
+                                                             onChange={e => setCondicaoEMA50(e.target.value)}
+                                                             style={{ maxWidth: "120px" }}>
                                                             <option value="maior">Maior que</option>
                                                             <option value="menor">Menor que</option>
                                                         </select>
-                                                        <input type="number" min="0" id="valor_ema_50" className="form-control" placeholder="Valor" style={{ maxWidth: "150px" }} />
+
+                                                        <input
+                                                            type="number"
+                                                             min="0" id="valor_ema_50" 
+                                                             className="form-control" 
+                                                             placeholder="Valor"
+                                                             value={valorEMA50}
+                                                             onChange={e => setValorEMA50(e.target.value)}
+                                                             style={{ maxWidth: "150px" }} />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -280,7 +377,7 @@ function AdicionarEstrategia({funcaoRecarregar}) {
                                                     {/* Bloco 1 */}
                                                     <div className="col-12 col-md-6 pe-2 ps-2">
                                                         <div className="d-flex align-items-center gap-2 mb-3 w-100">
-                                                        {/* Caixa fixa com "RÁPIDA" */}
+                                                        {/* Caixa fixa com "50D" */}
                                                         <span className="form-control text-center" style={{ maxWidth: "100px" }}>RÁPIDO</span>
 
                                                         {/* Caixa de seleção */}

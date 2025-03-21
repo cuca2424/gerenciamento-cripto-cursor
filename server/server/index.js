@@ -5,7 +5,7 @@ console.log("MONGO_URI:", process.env.MONGO_URI); // Teste para ver se a variáv
 
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 const axios = require("axios");
 
@@ -55,6 +55,7 @@ async function main() {
     console.log("Dados atualizados.");
 }
 
+app.use('/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(cors());
 
@@ -245,7 +246,7 @@ app.post("/login", async (req, res) => {
     
         let tempoDeExpiracao = lembrarDeMim ? "30d" : "1d";
     
-        const token = jwt.sign({ id: user._id, email: user.email }, SECRET, { expiresIn: tempoDeExpiracao });
+        const token = jwt.sign({ id: user._id, email: user.email, nome: user.user }, SECRET, { expiresIn: tempoDeExpiracao });
     
         res.status(200).json({ token });
 
@@ -548,7 +549,18 @@ app.get("/carteiras-detalhadas/:id_usuario", async (req, res) => {
 });
 
 app.post("/criar-sessao-checkout", async (req, res) => {
-    const { nome, email, senha } = req.body;
+    const { nome, email, senha, telefone } = req.body;
+
+    // validacoes
+
+    const usuarioExistente = await db.collection("usuarios").findOne({email: email});
+
+    console.log("usuario existente => ", usuarioExistente);
+
+    if (usuarioExistente) {
+        return res.status(400).send("Já existe uma conta cadastrada com esse email.");
+    }
+
 
     try {
         const session = await stripe.checkout.sessions.create({
@@ -560,16 +572,16 @@ app.post("/criar-sessao-checkout", async (req, res) => {
             },
           ],
           mode: 'subscription',
-          success_url: `http://147.93.67.125:3002/sucesso`, 
-          cancel_url: `http://147.93.67.125:3002/cancelado`, 
+          success_url: `http://147.93.67.125:3004/sucesso`, 
+          cancel_url: `http://147.93.67.125:3004/cancelado`, 
           metadata: {
             nome: nome,
             email: email,
             senha: senha,
+            num: telefone
           },
         });
-
-    
+        
         res.json({ sessionId: session.id });
 
     } catch (error) {
@@ -579,45 +591,69 @@ app.post("/criar-sessao-checkout", async (req, res) => {
 
 });
 
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
     const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const endpointSecret = "whsec_2b543d19f0b160a9778e5a261535cf2152e1e3ae16b69d4d7975782ad30fb7bc";
   
     let event;
   
     try {
+      // A Stripe precisa do corpo raw para verificar a assinatura
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } catch (err) {
 
+    } catch (err) {
       console.error('Erro na assinatura do webhook', err);
       return res.status(400).send('Erro na assinatura do webhook');
     }
   
-    // checkout concluido
+    // Verifica o evento do tipo 'checkout.session.completed'
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
+
   
-      // verifica se foi pago
+      // Verifica se foi pago
       if (session.payment_status === 'paid') {
-        
+        const id_stripe = event.data.object.customer;
         const user = {
-          nome: session.metadata.nome,
+          id_stripe: id_stripe,
+          user: session.metadata.nome,
           email: session.metadata.email,
-          senha: session.metadata.senha,
+          password: await bcrypt.hash(session.metadata.senha, 10),
+          num: session.metadata.num
         };
+
+        const usuarioExistente = await db.collection("usuarios").findOne({email: user.email});
+
+        if (usuarioExistente) {
+            res.status(400).send("Email já está em uso");
+        }
   
+        // Insere o usuário no banco de dados
         db.collection('usuarios').insertOne(user, (err, result) => {
           if (err) {
             console.error('Erro ao registrar usuário:', err);
           } else {
-            console.log('Usuário registrado com sucesso!', result);
+            console.log('Usuário registrado com sucesso!');
           }
         });
       }
     }
+
+    if (event.type === 'customer.subscription.deleted') {
+        const id_stripe = event.data.object.customer;
+    
+        const result = await db.collection("usuarios").deleteOne({ id_stripe: id_stripe });
+    
+        if (result.deletedCount === 1) {
+            console.log("✅ Usuário removido com sucesso!");
+        } else {
+            console.log("⚠️ Nenhum usuário encontrado com esse ID Stripe.");
+        }
+    }
+    
   
     res.json({ received: true });
-});
+  });
 
 app.get("/test3", (req, res) => {
     let result = [];
@@ -666,8 +702,8 @@ app.get("/maiores_variacoes", async (req, res) => {
     
     criptomoedas.sort((a, b) => b.variacao24h - a.variacao24h); 
 
-    const maioresGanhos = criptomoedas.slice(0, 5); 
-    const maioresPerdas = criptomoedas.slice(-5).reverse();
+    const maioresGanhos = criptomoedas.slice(0, 15); 
+    const maioresPerdas = criptomoedas.slice(-15).reverse();
 
     res.status(200).send({maioresGanhos, maioresPerdas});
 });
@@ -685,7 +721,7 @@ app.get("/aporte-saldo/:id_usuario", async (req, res) => {
     }
 
     return ultimosSeisMeses;
-};
+    };
 
 // Função auxiliar para acumular aportes
 const acumularAportes = (transacoes, precos) => {
@@ -858,9 +894,60 @@ app.post("/estrategias", async (req, res) => {
         id_usuario: id_usuario,
         periodo: periodo,
         string_filtro: string_filtro,
-        descricao: descricao
+        descricao: descricao,
+        notificacao: false
     })
 
     res.status(200).send("Estratégia cadastrada no banco de dados.");
+});
+
+
+app.put("/estrategias/notificacao/:id_estrategia/:id_usuario", async (req, res) => {
+    try {
+        const id_estrategia = req.params.id_estrategia; 
+        const id_usuario = req.params.id_usuario;
+        const id = new ObjectId(id_estrategia); // Converter para ObjectId
+
+        const estrategia = await db.collection("estrategias").findOne({_id: id});
+
+        if (!estrategia) {
+            return res.status(404).send("ID de estratégia inválido.");
+        }
+
+        if (estrategia.id_usuario === "geral") {
+            // Pega o valor atual (se não existir, assume `false`)
+            const notificacaoAtual = estrategia?.notificacoes_usuarios?.[id_usuario] ?? false;
+
+            // Inverte o valor
+            const novoValor = !notificacaoAtual;
+
+            const resultado = await db.collection("estrategias").updateOne(
+            { _id: id },
+            { 
+                $set: { [`notificacoes_usuarios.${id_usuario}`]: novoValor } 
+            }
+            );
+              
+              if (resultado.modifiedCount === 0) {
+                return res.status(404).send("Nenhuma estratégia encontrada ou já estava com esse valor.");
+            }
+
+        } else {
+            const resultado = await db.collection("estrategias").updateOne(
+                { _id: id },
+                [{ $set: { notificacao: { $not: "$notificacao" } } }]
+            );
+
+            if (resultado.modifiedCount === 0) {
+                return res.status(404).send("Nenhuma estratégia encontrada ou já estava com esse valor.");
+            }
+        }
+
+        console.log("Notificação invertida com sucesso!");
+        res.send("Notificação invertida com sucesso!");
+    } catch (erro) {
+        console.error("Erro ao atualizar notificação:", erro);
+        res.status(500).send("Erro no servidor");
+    }
 });
 

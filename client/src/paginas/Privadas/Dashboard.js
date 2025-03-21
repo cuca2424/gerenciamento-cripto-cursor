@@ -136,6 +136,7 @@ function Dashboard() {
       }
 
     } catch (err) {
+      console.log("erro na criação da carteira => ", err);
       setMensagemErroCriarCarteira("Houve um erro interno.");
     }
   }
@@ -265,7 +266,12 @@ function Dashboard() {
                       )}
 
                       </div>
-                      <h5 class="text-body-highlight mb-2">
+                      <h5 class="text-body-highlight mb-2" style={{
+                        width: "170px", // Ajuste conforme necessário
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}> 
                         {dadosDashboard ? (
                           `${dadosDashboard.lucro.nominal.toLocaleString('en',{style: 'currency', currency: 'USD'})} (${(dadosDashboard.lucro.porcentual ?? 0.00).toFixed(2)}%)`
                         ) : (

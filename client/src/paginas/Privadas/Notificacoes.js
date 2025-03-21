@@ -1,22 +1,24 @@
-function Notificacoes() {
-    return (
-        <div className="container">
-  <div className="d-flex overflow-auto" style={{ whiteSpace: "nowrap" }}>
-    {Array.from({ length: 10 }).map((_, index) => (
-      <div key={index} className="col-3 flex-shrink-0 p-2">
-        <div className="card shadow-sm" style={{ width: "200px", height: "130px" }}>
-          <div className="card-body d-flex align-items-center justify-content-center">
-            <h5 className="card-title">Card {index + 1}</h5>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
+import React, { useState } from "react";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/bootstrap.css"; // Usa o tema do Bootstrap
 
+function Cadastro() {
+  const [telefone, setTelefone] = useState("");
 
-
-    )
+  return (
+    <div className="container mt-4">
+      <label className="form-label">Número de Telefone</label>
+      <PhoneInput
+        country={"br"} 
+        value={telefone}
+        onChange={setTelefone}
+        inputClass="form-control" 
+        containerClass="w-100"
+        className="" 
+      />
+      <p className="mt-2">Número digitado: {telefone}</p>
+    </div>
+  );
 }
 
-export default Notificacoes;
+export default Cadastro;

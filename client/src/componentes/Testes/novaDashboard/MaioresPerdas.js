@@ -1,23 +1,30 @@
-const dados = [
-    { url: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png",
-    nome: "Dogecoin",
-    preco: "$0.33",
-    variacao: "+17%" },
-    { url: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png",
-    nome: "Bitcoin",
-    preco: "$103,812",
-    variacao: "+12%" },
-    { url: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png",
-    nome: "Ethereum",
-    preco: "$2,871",
-    variacao: "+11%" },
-    { url: "https://coin-images.coingecko.com/coins/images/5/large/dogecoin.png",
-    nome: "Solana",
-    preco: "$201.34",
-    variacao: "+7%" },
-];
+import { useState, useEffect, useRef } from "react";
+import "./NoBorder.css"
 
 function MaioresPerdas({dados}) {
+    const [quantidadeVisivel, setQuantidadeVisivel] = useState(5); // Valor inicial
+    const tabelaRef = useRef(null);
+
+    // Função para calcular quantas linhas cabem no card
+    const calcularLinhasVisiveis = () => {
+        if (tabelaRef.current) {
+            const alturaCard = tabelaRef.current.parentElement.clientHeight; // Altura do card pai
+            const alturaItem = 40; // Altura aproximada de cada linha
+            const novasLinhas = Math.floor(alturaCard / alturaItem);
+            setQuantidadeVisivel(novasLinhas);
+        }
+    };
+
+    useEffect(() => {
+        calcularLinhasVisiveis(); // Calcula ao montar o componente
+
+        window.addEventListener("resize", calcularLinhasVisiveis); // Atualiza ao redimensionar
+
+        return () => {
+            window.removeEventListener("resize", calcularLinhasVisiveis); // Remove o listener ao desmontar
+        };
+    }, [dados]); // Atualiza se os dados mudarem
+
     return (
     <div className="card h-100">
 
@@ -29,18 +36,21 @@ function MaioresPerdas({dados}) {
 
             {
                 dados.length > 0 ? (
-<table className="table fs-10 px-4">
+            <table ref={tabelaRef} className="table fs-10 px-4 tabela-sem-linha">
                 <thead>
                 <tr >
                     <th className="text-start">Criptomoeda</th>
                     <th className="text-center">Preço</th>
-                    <th className="text-end">Variação</th>
+                    <th className="text-end pe-2">Variação</th>
                 </tr>
                 </thead>
                 <tbody className="list">
-                {dados?.map(dado => {
+                {dados?.slice(0, quantidadeVisivel).map((dado, index, array) => {
                     return (
-                        <tr className="text-start px-5">
+                        <tr
+                            key={dado.id}
+                            className={`text-start px-5 ${index === array.length - 1 ? 'no-border' : ''}`}
+                        >
                             <td className="py-2 white-space-nowrap ps-2 country">
                                 <div
                                     className="d-flex align-items-center text-primary py-md-1 py-xxl-0"
@@ -59,7 +69,7 @@ function MaioresPerdas({dados}) {
                             <td className="py-2 text-center">
                                 <h6>${dado.precoAtual.toFixed(8)}</h6>
                             </td>
-                            <td className="py-2 text-end">
+                            <td className="py-2 pe-2 text-end">
                                 <h6 className="text-danger">{dado.variacao24h.toFixed(2)}%</h6>
                             </td>
                         </tr>

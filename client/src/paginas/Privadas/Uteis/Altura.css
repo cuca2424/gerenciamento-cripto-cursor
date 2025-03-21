@@ -5,3 +5,34 @@
 .altura-card {
     height: calc((100vh - 120px) / 2);
 }
+
+/* Remove as setas da barra de rolagem */
+.custom-scrollbar {
+scrollbar-width: thin; /* Barra fina para Firefox */
+scrollbar-color: #888 transparent; /* Cor da barra e fundo transparente */
+}
+
+/* Estilo para WebKit (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+width: 6px; /* Largura da barra de rolagem */
+height: 6px; /* Altura da barra de rolagem horizontal */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+background: transparent; /* Fundo transparente */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+background: #888; /* Cor da barra cinza */
+border-radius: 3px; /* Bordas arredondadas */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+background: #555; /* Cor da barra ao passar o mouse */
+}
+
+/* Remove as setas das extremidades no WebKit */
+.custom-scrollbar::-webkit-scrollbar-button {
+display: none; /* Esconde as setas */
+}
+        

@@ -43,6 +43,25 @@ const Privado = ({ Item }) => {
 
 };
 
+const LoginProtegido = ({ children }) => {
+    console.log("bateu aqui");
+    const token = localStorage.getItem("token");
+
+    if (token) {
+        try {
+            const decoded = jwt_decode(token);
+            const isTokenValid = decoded.exp * 1000 > Date.now();
+            if (isTokenValid) {
+                return <Navigate to="/" />;
+            }
+        } catch (error) {
+            console.error("Erro ao verificar o token:", error);
+        }
+    }
+
+    return children;
+};
+
 
 
 function App() {
@@ -57,7 +76,8 @@ function App() {
                     <Route path="/sentimento_de_mercado" element={< Privado Item={() => <Layout componente={<SentimentoDeMercado />}/>}/>}/>
                     <Route path="/notificacoes" element={< Privado Item={() => <Layout componente={<Notificacoes/>}/>}/>}/>
                     
-                    <Route path="/login" element={<Login />} />
+                    <Route path="/login" element={<LoginProtegido children={<Login />} />} />
+
                     <Route path="/cadastro" element={<Cadastro />} />
                     <Route path="/esqueceu_senha" element={<EsqueceuSenha />} />
                     <Route path="/sucesso" element={<Sucesso />} />

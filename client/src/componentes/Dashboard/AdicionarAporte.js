@@ -34,6 +34,25 @@ function AdicionarAporte({carteiras = [], botaoCarteira, funcaoRecarregar}) {
         fetchCriptomoedas();
       }, []);
 
+      // apagar campos quando fechar modal
+      useEffect(() => {
+        const modalElement = document.getElementById("modalAdicionarAporte");
+    
+        const handleClose = () => {
+          setMensagemErroAdicionarAporte("");
+          setCriptomoeda("");
+          setPreco("");
+          setCriptomoedaNome("");
+          setQuantidade("");
+        };
+    
+        modalElement.addEventListener("hidden.bs.modal", handleClose);
+    
+        return () => {
+          modalElement.removeEventListener("hidden.bs.modal", handleClose);
+        };
+      }, []);
+
     // dropdown com pesquisa
 
     const criptomoedass = [
@@ -144,6 +163,7 @@ function AdicionarAporte({carteiras = [], botaoCarteira, funcaoRecarregar}) {
               setMensagemErroAdicionarAporte("");
               setCriptomoeda("");
               setPreco("");
+              setCriptomoedaNome("");
               setQuantidade("");
               closeModal("modalAdicionarAporte");    
             } else {

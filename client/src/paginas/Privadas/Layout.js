@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useUser } from "../../contexts/UserContext";
 
 function Layout({componente}) {
   const navigate = useNavigate();
@@ -106,6 +107,10 @@ function Layout({componente}) {
         navbarVertical.setAttribute('data-navbar-appearance', 'darker');
       }
   },[])
+
+  const { user } = useUser();
+  console.log("user aqui =>>>>", user);
+  const nome_usuario = user?.nome || null;
 
   return (
     <div>
@@ -273,16 +278,10 @@ function Layout({componente}) {
                         <div class="avatar avatar-xl ">
                           <img class="rounded-circle " src="assets/img/team/72x72/57.webp" alt="" />
                         </div>
-                        <h6 class="mt-2 text-body-emphasis">Jerry Seinfield</h6>
+                        <h6 class="mt-2 text-body-emphasis">{nome_usuario || "Jerry Seinfield"}</h6>
                       </div>
                     </div>
-                    <div class="overflow-auto scrollbar" style={{height: "10rem"}}>
-                      <ul class="nav d-flex flex-column mb-2 pb-1">
-                        <li class="nav-item"><a class="nav-link px-3 d-block" href="#!"><span class="me-2 text-body align-bottom" data-feather="pie-chart"></span>Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link px-3 d-block" href="#!"> <span class="me-2 text-body align-bottom" data-feather="settings"></span>Configurações</a></li>
-                      </ul>
-                    </div>
-                      <div class="px-3"> 
+                      <div class="px-3 py-5"> 
                         <button class="btn btn-phoenix-secondary d-flex flex-center w-100" onClick={() => {
                           localStorage.removeItem("token");
                           navigate("/login");

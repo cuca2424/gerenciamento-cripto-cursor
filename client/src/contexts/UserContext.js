@@ -12,8 +12,9 @@ export const UserProvider = ({ children }) => {
             try {
                 const descodificado = jwt_decode(token);
                 const tokenValido = descodificado.exp * 1000 > Date.now();
+                console.log("decodificado => ", descodificado);
                 if (tokenValido) {
-                    setUser({ id: descodificado.id, email: descodificado.email });
+                    setUser({ id: descodificado.id, email: descodificado.email, nome: descodificado.nome });
                 } else {
                     localStorage.removeItem("token");
                     setUser(null);
