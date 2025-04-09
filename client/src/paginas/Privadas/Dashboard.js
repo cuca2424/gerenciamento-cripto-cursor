@@ -9,7 +9,7 @@ import useAvailableHeight from '../../hooks/useAvailableHeight';
 
 function Dashboard() {
   // Considerando que temos um header de 64px e os cards de métricas com 120px + 24px de margem
-  const availableHeight = useAvailableHeight(215);
+  const availableHeight = useAvailableHeight(200);
   const cardHeight = availableHeight / 2 - 12; // Dividir por 2 e subtrair metade do gap (24px/2)
 
   const formatCurrency = (value) => {
@@ -55,31 +55,31 @@ function Dashboard() {
           <MetricCard
             title="Saldo em Reais"
             value={formatCurrency(10000)}
-
+            centered
           />
-                  </div>
+        </div>
         <div className="col-md-3">
           <MetricCard
             title="Saldo em Cripto"
             value={formatCurrency(50000)}
-
+            centered
           />
-                      </div>
+        </div>
         <div className="col-md-3">
           <MetricCard
             title="Total de Aportes"
             value={formatCurrency(75000)}
-
+            centered
           />
-                  </div>
+        </div>
         <div className="col-md-3">
           <MetricCard
             title="Lucro Total"
             value={formatCurrency(15000)}
-
+            centered
           />
-                  </div>
-              </div>
+        </div>
+      </div>
 
       {/* Container para os cards grandes */}
       <div className="row g-3 mx-0">

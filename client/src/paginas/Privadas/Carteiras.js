@@ -18,6 +18,22 @@ function Carteiras() {
   const [viewMode, setViewMode] = useState('list'); // 'list' ou 'detail'
   const [selectedWalletForDetail, setSelectedWalletForDetail] = useState(null);
 
+  // Estados para venda de ativos
+  const [showSellModal, setShowSellModal] = useState(false);
+  const [assetToSell, setAssetToSell] = useState(null);
+  const [sellFormData, setSellFormData] = useState({
+    quantidade: '',
+    preco: ''
+  });
+
+  // Estados para adicionar ativo
+  const [showAddAssetModal, setShowAddAssetModal] = useState(false);
+  const [addAssetFormData, setAddAssetFormData] = useState({
+    cripto: '',
+    quantidade: '',
+    preco: ''
+  });
+
   // Dados de exemplo para carteiras
   const [carteiras, setCarteiras] = useState([
     {
@@ -71,7 +87,7 @@ function Carteiras() {
 
   // Prevenir scroll do body quando o modal estiver aberto
   useEffect(() => {
-    if (showModal || showDeleteModal) {
+    if (showModal || showDeleteModal || showSellModal || showAddAssetModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -80,7 +96,7 @@ function Carteiras() {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [showModal, showDeleteModal]);
+  }, [showModal, showDeleteModal, showSellModal, showAddAssetModal]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -194,23 +210,139 @@ function Carteiras() {
     setSelectedWalletForDetail(null);
   };
 
+  const handleSellAsset = (asset) => {
+    setAssetToSell(asset);
+    setSellFormData({
+      quantidade: asset.quantidade,
+      preco: asset.valor / asset.quantidade
+    });
+    setShowSellModal(true);
+  };
+
+  const handleSellFormChange = (e) => {
+    const { name, value } = e.target;
+    setSellFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleConfirmSell = () => {
+    if (assetToSell && selectedWalletForDetail) {
+      // Atualizar a carteira com a venda
+      const updatedWallet = {
+        ...selectedWalletForDetail,
+        transacoes: selectedWalletForDetail.transacoes.map(transacao => {
+          if (transacao.id === assetToSell.id) {
+            return {
+              ...transacao,
+              quantidade: transacao.quantidade - parseFloat(sellFormData.quantidade),
+              valor: (transacao.quantidade - parseFloat(sellFormData.quantidade)) * (transacao.valor / transacao.quantidade)
+            };
+          }
+          return transacao;
+        })
+      };
+
+      // Atualizar o estado da carteira
+      setCarteiras(prev => 
+        prev.map(wallet => 
+          wallet.id === updatedWallet.id ? updatedWallet : wallet
+        )
+      );
+
+      // Fechar o modal e resetar os estados
+      setShowSellModal(false);
+      setAssetToSell(null);
+      setSellFormData({
+        quantidade: '',
+        preco: ''
+      });
+    }
+  };
+
+  const handleCancelSell = () => {
+    setShowSellModal(false);
+    setAssetToSell(null);
+    setSellFormData({
+      quantidade: '',
+      preco: ''
+    });
+  };
+
+  const handleAddAsset = () => {
+    setShowAddAssetModal(true);
+    setAddAssetFormData({
+      cripto: '',
+      quantidade: '',
+      preco: ''
+    });
+  };
+
+  const handleAddAssetFormChange = (e) => {
+    const { name, value } = e.target;
+    setAddAssetFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleConfirmAddAsset = () => {
+    if (selectedWalletForDetail) {
+      const newAsset = {
+        id: Date.now(), // ID temporário
+        cripto: addAssetFormData.cripto,
+        quantidade: parseFloat(addAssetFormData.quantidade),
+        valor: parseFloat(addAssetFormData.quantidade) * parseFloat(addAssetFormData.preco),
+        variacao: 0 // Variação inicial será 0
+      };
+
+      const updatedWallet = {
+        ...selectedWalletForDetail,
+        transacoes: [...selectedWalletForDetail.transacoes, newAsset]
+      };
+
+      setCarteiras(prev => 
+        prev.map(wallet => 
+          wallet.id === updatedWallet.id ? updatedWallet : wallet
+        )
+      );
+
+      setShowAddAssetModal(false);
+      setAddAssetFormData({
+        cripto: '',
+        quantidade: '',
+        preco: ''
+      });
+    }
+  };
+
+  const handleCancelAddAsset = () => {
+    setShowAddAssetModal(false);
+    setAddAssetFormData({
+      cripto: '',
+      quantidade: '',
+      preco: ''
+    });
+  };
+
   // Renderização da lista de carteiras
   const renderWalletList = () => {
     return (
-      <div className="container-fluid py-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="container-fluid px-2 py-2">
+        <div className="d-flex justify-content-between align-items-center mb-3">
           <h2>Carteiras</h2>
           <button 
-            className="btn btn-primary d-flex align-items-center"
+            className="btn btn-outline-secondary d-flex align-items-center"
             onClick={() => handleOpenModal('add')}
           >
             <FaPlus className="me-2" /> Nova Carteira
           </button>
         </div>
 
-        <div className="row">
+        <div className="row g-3">
           {carteiras.map(carteira => (
-            <div key={carteira.id} className="col-md-4 mb-4">
+            <div key={carteira.id} className="col-md-4">
               <div 
                 className="card h-100 shadow-sm cursor-pointer" 
                 onClick={() => handleWalletClick(carteira)}
@@ -271,8 +403,8 @@ function Carteiras() {
     if (!selectedWalletForDetail) return null;
 
     return (
-      <div className="container-fluid py-4">
-        <div className="d-flex align-items-center mb-4">
+      <div className="container-fluid px-2 py-2">
+        <div className="d-flex align-items-center mb-3">
           <button 
             className="btn btn-outline-secondary me-3"
             onClick={handleBackToList}
@@ -283,16 +415,8 @@ function Carteiras() {
         </div>
 
         {/* Cards de estatísticas no topo */}
-        <div className="row mb-4">
-          <div className="col-md-4 mb-3">
-            <div className="card h-100">
-              <div className="card-body text-center">
-                <h6 className="text-muted">Aporte Total</h6>
-                <h3 className="mb-0">{formatCurrency(selectedWalletForDetail.aporte)}</h3>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-4 mb-3">
+        <div className="row g-3 mb-3">
+          <div className="col-md-4">
             <div className="card h-100">
               <div className="card-body text-center">
                 <h6 className="text-muted">Saldo Total</h6>
@@ -300,7 +424,15 @@ function Carteiras() {
               </div>
             </div>
           </div>
-          <div className="col-md-4 mb-3">
+          <div className="col-md-4">
+            <div className="card h-100">
+              <div className="card-body text-center">
+                <h6 className="text-muted">Aporte Total</h6>
+                <h3 className="mb-0">{formatCurrency(selectedWalletForDetail.aporte)}</h3>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4">
             <div className="card h-100">
               <div className="card-body text-center">
                 <h6 className="text-muted">Lucro Total</h6>
@@ -316,113 +448,55 @@ function Carteiras() {
         </div>
 
         {/* Informações da carteira */}
-        <div className="row mb-4">
+        <div className="row g-3">
           <div className="col-12">
             <div className="card">
               <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Informações da Carteira</h5>
-                <div>
-                  <button 
-                    className="btn btn-outline-primary btn-sm me-2"
-                    onClick={() => handleOpenModal('edit', selectedWalletForDetail)}
-                  >
-                    <FaEdit />
-                  </button>
-                  <button 
-                    className="btn btn-outline-danger btn-sm"
-                    onClick={() => handleDeleteClick(selectedWalletForDetail)}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              </div>
-              <div className="card-body">
-                <p className="text-muted mb-4">{selectedWalletForDetail.descricao}</p>
-                <div className="row">
-                  <div className="col-md-6">
-                    <p><strong>Data de Criação:</strong> {formatDate(selectedWalletForDetail.dataCriacao)}</p>
-                  </div>
-                  <div className="col-md-6">
-                    <p><strong>Última Atualização:</strong> {formatDate(selectedWalletForDetail.ultimaAtualizacao)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="row">
-          <div className="col-md-8">
-            <div className="card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Histórico de Transações</h5>
-                <button className="btn btn-sm btn-outline-primary">
-                  <FaPlus className="me-1" /> Nova Transação
+                <h5 className="mb-0">Ativos da Carteira</h5>
+                <button 
+                  className="btn btn-outline-secondary btn-sm d-flex align-items-center"
+                  onClick={() => handleAddAsset()}
+                >
+                  <FaPlus className="me-2" /> Adicionar Ativo
                 </button>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
                   <table className="table table-hover mb-0">
-                    <thead className="table-light">
+                    <thead>
                       <tr>
-                        <th>Data</th>
-                        <th>Tipo</th>
-                        <th>Criptomoeda</th>
-                        <th>Quantidade</th>
-                        <th>Valor</th>
+                        <th className="py-3 ps-4 w-25">Criptomoeda</th>
+                        <th className="py-3 w-15">Quantidade</th>
+                        <th className="py-3 w-15">Preço Médio</th>
+                        <th className="py-3 w-15">Valor Atual</th>
+                        <th className="py-3 w-15">Variação</th>
+                        <th className="py-3 pe-4 w-15 text-end">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedWalletForDetail.transacoes.map(transacao => (
                         <tr key={transacao.id}>
-                          <td>{formatDate(transacao.data)}</td>
-                          <td>
-                            <span className={`badge ${transacao.tipo === 'compra' ? 'bg-success' : 'bg-danger'}`}>
-                              {transacao.tipo === 'compra' ? 'Compra' : 'Venda'}
+                          <td className="align-middle ps-4">{transacao.cripto}</td>
+                          <td className="align-middle">{transacao.quantidade}</td>
+                          <td className="align-middle">{formatCurrency(transacao.valor / transacao.quantidade)}</td>
+                          <td className="align-middle">{formatCurrency(transacao.valor)}</td>
+                          <td className="align-middle">
+                            <span className={`badge ${transacao.variacao >= 0 ? 'bg-success' : 'bg-danger'}`}>
+                              {formatPercentage(transacao.variacao || 0)}
                             </span>
                           </td>
-                          <td>{transacao.cripto}</td>
-                          <td>{transacao.quantidade}</td>
-                          <td>{formatCurrency(transacao.valor)}</td>
+                          <td className="align-middle pe-4 text-end">
+                            <button 
+                              className="btn btn-outline-secondary btn-sm"
+                              onClick={() => handleSellAsset(transacao)}
+                            >
+                              Vender
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-md-4">
-            <div className="card mb-4">
-              <div className="card-header">
-                <h5 className="mb-0">Distribuição de Ativos</h5>
-              </div>
-              <div className="card-body">
-                <div className="text-center p-4">
-                  <p className="text-muted">Gráfico de distribuição de ativos será exibido aqui</p>
-                  <div className="bg-light rounded p-4">
-                    <FaChartLine size={50} className="text-muted" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="card-header">
-                <h5 className="mb-0">Ações Rápidas</h5>
-              </div>
-              <div className="card-body">
-                <div className="d-grid gap-2">
-                  <button className="btn btn-outline-primary">
-                    <FaExchangeAlt className="me-2" /> Transferir para outra carteira
-                  </button>
-                  <button className="btn btn-outline-success">
-                    <FaPlus className="me-2" /> Adicionar fundos
-                  </button>
-                  <button className="btn btn-outline-danger">
-                    <FaTrash className="me-2" /> Remover fundos
-                  </button>
                 </div>
               </div>
             </div>
@@ -604,7 +678,235 @@ function Carteiras() {
               </div>
             </div>
           </div>
-    </div>
+        </div>
+      )}
+
+      {/* Modal de venda de ativo */}
+      {showSellModal && (
+        <div 
+          className="modal-backdrop fade show" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1040
+          }}
+          onClick={handleCancelSell}
+        ></div>
+      )}
+      
+      {showSellModal && (
+        <div 
+          className="modal fade show" 
+          style={{
+            display: 'block',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1050,
+            overflow: 'auto'
+          }}
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered" 
+            style={{ maxWidth: '500px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Vender {assetToSell?.cripto}</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={handleCancelSell}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <form>
+                  <div className="mb-3">
+                    <label className="form-label">Quantidade Disponível</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      name="quantidade"
+                      value={sellFormData.quantidade}
+                      onChange={handleSellFormChange}
+                      min="0"
+                      max={assetToSell?.quantidade}
+                      step="0.00000001"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Preço de Venda</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      name="preco"
+                      value={sellFormData.preco}
+                      onChange={handleSellFormChange}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Valor Total</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formatCurrency(sellFormData.quantidade * sellFormData.preco)}
+                      readOnly
+                    />
+                  </div>
+                </form>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleCancelSell}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-danger"
+                  onClick={handleConfirmSell}
+                >
+                  Confirmar Venda
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de adicionar ativo */}
+      {showAddAssetModal && (
+        <div 
+          className="modal-backdrop fade show" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1040
+          }}
+          onClick={handleCancelAddAsset}
+        ></div>
+      )}
+      
+      {showAddAssetModal && (
+        <div 
+          className="modal fade show" 
+          style={{
+            display: 'block',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1050,
+            overflow: 'auto'
+          }}
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div 
+            className="modal-dialog modal-dialog-centered" 
+            style={{ maxWidth: '500px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Adicionar Ativo</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={handleCancelAddAsset}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <form>
+                  <div className="mb-3">
+                    <label className="form-label">Criptomoeda</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      name="cripto"
+                      value={addAssetFormData.cripto}
+                      onChange={handleAddAssetFormChange}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Quantidade</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      name="quantidade"
+                      value={addAssetFormData.quantidade}
+                      onChange={handleAddAssetFormChange}
+                      min="0"
+                      step="0.00000001"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Preço de Compra</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      name="preco"
+                      value={addAssetFormData.preco}
+                      onChange={handleAddAssetFormChange}
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Valor Total</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formatCurrency(addAssetFormData.quantidade * addAssetFormData.preco)}
+                      readOnly
+                    />
+                  </div>
+                </form>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary" 
+                  onClick={handleCancelAddAsset}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary"
+                  onClick={handleConfirmAddAsset}
+                >
+                  Adicionar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

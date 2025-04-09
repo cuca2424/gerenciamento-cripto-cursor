@@ -1,14 +1,14 @@
 import React from 'react';
 
-const MetricCard = ({ title, value }) => {
+function MetricCard({ title, value, centered = false }) {
   return (
-    <div className={`card text-white h-100`}>
-      <div className="card-body p-4">
-        <h5 className="card-title mb-3">{title}</h5>
-        <h2 className="card-text">{value}</h2>
+    <div className="card h-100">
+      <div className={`card-body ${centered ? 'text-center' : ''}`}>
+        <h6 className="text-muted">{title}</h6>
+        <h3 className="mb-0">{value}</h3>
       </div>
     </div>
   );
-};
+}
 
 export default MetricCard; 
