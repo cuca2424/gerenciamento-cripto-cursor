@@ -19,14 +19,15 @@ function Cadastro() {
   const phoneInputRef = useRef(null);  // Cria a referência para o input
 
   useEffect(() => {
-    console.log("mudou o telefone...");
-    console.log(telefone.length);
-    if (phoneInputRef.current) {
-      const inputElement = phoneInputRef.current.numberInputRef;
+      console.log("mudou o telefone...");
+      console.log(telefone);
+      if (phoneInputRef.current && telefone) {
+        const inputElement = phoneInputRef.current.numberInputRef;
       if (inputElement) {
         inputElement.focus(); // Foca no input quando o telefone muda
       }
     }
+    
   }, [telefone]);
 
   const handleRegistro = async () => {

@@ -1,24 +1,11 @@
-import React, { useState } from "react";
-import PhoneInput from "react-phone-input-2";
-import "react-phone-input-2/lib/bootstrap.css"; // Usa o tema do Bootstrap
+import React from 'react';
 
-function Cadastro() {
-  const [telefone, setTelefone] = useState("");
-
+function Notificacoes() {
   return (
-    <div className="container mt-4">
-      <label className="form-label">Número de Telefone</label>
-      <PhoneInput
-        country={"br"} 
-        value={telefone}
-        onChange={setTelefone}
-        inputClass="form-control" 
-        containerClass="w-100"
-        className="" 
-      />
-      <p className="mt-2">Número digitado: {telefone}</p>
+    <div className="container-fluid">
+      <h1>Notificações</h1>
     </div>
   );
 }
 
-export default Cadastro;
+export default Notificacoes;

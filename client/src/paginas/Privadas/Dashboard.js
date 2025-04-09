@@ -1,317 +1,103 @@
-import { useState } from "react";
-import { useUser } from "../../contexts/UserContext";
-import { useEffect } from "react";
-
-// componentes
-import Carteiras from "../../componentes/Dashboard/Carteiras";
-import AdicionarAporte from "../../componentes/Dashboard/AdicionarAporte";
-import CriarCarteira from "../../componentes/Dashboard/CriarCarteira"
-import AporteSaldo3 from "../../componentes/Testes/novaDashboard/AporteSaldo3";
-import GraficoPizza from "../../componentes/Testes/novaDashboard/GraficoPizza";
-import MaioresGanhos from "../../componentes/Testes/novaDashboard/MaioresGanhos";
-import MaioresPerdas from "../../componentes/Testes/novaDashboard/MaioresPerdas";
-import MedoGanancia3 from "../../componentes/Testes/novaDashboard/MedoGanancia3";
-
-
+import React from 'react';
+import MetricCard from '../../components/dashboard/MetricCard';
+import MarketVariations from '../../components/dashboard/MarketVariations';
+import EmptyCard from '../../components/dashboard/EmptyCard';
+import OverviewCard from '../../components/dashboard/OverviewCard';
+import WalletsCard from '../../components/dashboard/WalletsCard';
+import MarketThermometer from '../../components/dashboard/MarketThermometer';
+import useAvailableHeight from '../../hooks/useAvailableHeight';
 
 function Dashboard() {
-  const { user } = useUser();
-  const id_usuario = user?.id || null;
+  // Considerando que temos um header de 64px e os cards de métricas com 120px + 24px de margem
+  const availableHeight = useAvailableHeight(215);
+  const cardHeight = availableHeight / 2 - 12; // Dividir por 2 e subtrair metade do gap (24px/2)
 
-  const [carteiras, setCarteiras] = useState();
-  const [dadosGerais, setDadosGerais] = useState(null);
-  const [resultadoGeral, setResultadoGeral] = useState(null);
-
-  const [dadosDashboard, setDadosDashboard] = useState();
-  const [dadosGraficoPizza, setDadosGraficoPizza] = useState();
-  const [dadosGraficoLinha, setDadosGraficoLinha] = useState();
-  const [graficoLinhaAtual, setGraficoLinhaAtual] = useState();
-
-  const [carteiraSelecionada, setCarteiraSelecionada] = useState();
-  const [dadosAporteSaldo, setDadosAporteSaldo] = useState([]);
-
-  const [maioresGanhos, setMaioresGanhos] = useState([]);
-  const [maioresPerdas, setMaioresPerdas] = useState([]);
-
-  const [mensagemErroCriarCarteira, setMensagemErroCriarCarteira] = useState("");
-  const [reabrir, setReabrir] = useState(false);
-
-  const atualizarDados = async () => {
-    try {
-      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteiras-detalhadas/${id_usuario}`);
-
-      const resposta2 = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/aporte-saldo/${id_usuario}`);
-
-      if (resposta.ok && resposta2.ok) {
-        const dados = await resposta.json();
-        const dados2 = await resposta2.json();
-        setCarteiras(dados.carteirasComDetalhes);
-        setDadosGerais(dados.dadosTotais);
-        setResultadoGeral(dados.resultadoGeral);
-        setDadosGraficoLinha(dados2);
-      }
-    } catch (err) {
-      console.log("Erro ao buscar carteiras: ", err);
-    }
-  }
-
-  const dadosAdicionais = async () => {
-    try {
-      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/maiores_variacoes`);
-
-      if (resposta.ok) {
-        const dados = await resposta.json();
-        setMaioresGanhos(dados.maioresGanhos);
-        setMaioresPerdas(dados.maioresPerdas);
-      }
-    } catch (err) {
-      console.log("Erro ao buscar dados adicionais: ", err);
-    }
-  }
-
-  const buscarDadosAporteSaldo = async () => {
-    try {
-      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/aporte-saldo/${id_usuario}`);
-
-      if (resposta.ok) {
-        const dados = await resposta.json();
-        setDadosGraficoLinha(dados);
-      }
-    } catch (err) {
-      console.log("Erro ao buscar dados de aporte e saldo: ", err)
-    }
-  }
-
-  // atualizarDados();
-
-  function selecionarCarteira() {
-    const id_carteira = document.getElementById("option-carteiras").value;
-
-    if (id_carteira === "todas_carteiras") {
-      setDadosDashboard(dadosGerais);
-      setDadosGraficoPizza(resultadoGeral);
-      setGraficoLinhaAtual(dadosGraficoLinha?.geral);
-    }
-
-    const carteiraEscolhida = carteiras?.find(carteira => carteira._id === id_carteira);
-
-    if (carteiraEscolhida) {
-      setDadosDashboard({
-        "aportes": carteiraEscolhida.totalAportesCarteira,
-        "saldo": carteiraEscolhida.valorTotalCarteira,
-        "lucro": carteiraEscolhida.lucroOuPrejuizo
-      });
-      setDadosGraficoPizza(carteiraEscolhida.resultado);
-      setCarteiraSelecionada(carteiraEscolhida);
-      setGraficoLinhaAtual(dadosGraficoLinha[id_carteira]);
-    }
-  }
-
-  const funcaoCriarCarteira = async (nomeCarteira) => {
-    const req = {
-      "id_usuario": id_usuario,
-      "nome": nomeCarteira
-    }
-
-    try {
-      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req),
-    });
-
-      if (response.ok) {
-        atualizarDados();
-        setMensagemErroCriarCarteira("");
-        fecharModal("modalCriarCarteira");
-
-        if (reabrir) {
-          abrirModal('modalAdicionarAporte');
-        }
-
-      } else {
-        const errorMessage = await response.text();
-        setMensagemErroCriarCarteira(errorMessage);
-        console.log(errorMessage)
-      }
-
-    } catch (err) {
-      console.log("erro na criação da carteira => ", err);
-      setMensagemErroCriarCarteira("Houve um erro interno.");
-    }
-  }
-
-  // helpers
-  const abrirModal = (id) => {
-    const modal = new window.bootstrap.Modal(document.getElementById(id));
-    modal.show(); 
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
-  const fecharModal = (id) => {
-    const modalElement = document.getElementById(id);
-    const modalInstance = window.bootstrap.Modal.getInstance(modalElement);
-    if (modalInstance) {
-      modalInstance.hide();
-    }
-  }
+  const formatPercentage = (value) => {
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
 
-  useEffect(() => {
-    const modal = document.getElementById('modalCriarCarteira');
-    modal.addEventListener("hidden.bs.modal", () => {
-      setReabrir(false);
-    })
-  }, [])
+  // Dados de exemplo para as variações de criptomoedas
+  const variacoes = [
+    { nome: 'Bitcoin', sigla: 'BTC', variacao: 12.5, preco: 250000 },
+    { nome: 'Ethereum', sigla: 'ETH', variacao: 8.3, preco: 12000 },
+    { nome: 'Ripple', sigla: 'XRP', variacao: 5.7, preco: 3.20 },
+    { nome: 'Binance Coin', sigla: 'BNB', variacao: 4.2, preco: 1500 },
+    { nome: 'Polygon', sigla: 'MATIC', variacao: 3.8, preco: 4.50 },
+    { nome: 'Chainlink', sigla: 'LINK', variacao: 3.1, preco: 60 },
+    { nome: 'Uniswap', sigla: 'UNI', variacao: 2.8, preco: 45 },
+    { nome: 'Aave', sigla: 'AAVE', variacao: 2.5, preco: 320 },
+    { nome: 'Litecoin', sigla: 'LTC', variacao: 2.2, preco: 450 },
+    { nome: 'Stellar', sigla: 'XLM', variacao: 1.9, preco: 2.80 },
+    { nome: 'Cardano', sigla: 'ADA', variacao: -15.2, preco: 2.5 },
+    { nome: 'Solana', sigla: 'SOL', variacao: -7.8, preco: 850 },
+    { nome: 'Polkadot', sigla: 'DOT', variacao: -6.4, preco: 120 },
+    { nome: 'Avalanche', sigla: 'AVAX', variacao: -5.9, preco: 180 },
+    { nome: 'Cosmos', sigla: 'ATOM', variacao: -4.7, preco: 90 },
+    { nome: 'Near', sigla: 'NEAR', variacao: -3.9, preco: 25 },
+    { nome: 'Algorand', sigla: 'ALGO', variacao: -3.5, preco: 8.50 },
+    { nome: 'VeChain', sigla: 'VET', variacao: -3.2, preco: 1.20 },
+    { nome: 'Fantom', sigla: 'FTM', variacao: -2.8, preco: 3.40 },
+    { nome: 'Tezos', sigla: 'XTZ', variacao: -2.5, preco: 15 }
+  ];
 
-  useEffect(() => {
-    if (dadosGerais) {
-      selecionarCarteira();
-    }
-  }, [dadosGerais]);
-
-  useEffect(() => {
-    if (id_usuario) {
-      atualizarDados();
-      dadosAdicionais();
-    }
-  }, [id_usuario]);
-
-
-  return(
-    <div className="col-12">
-      <div className="row altura">
-        <div className="p-2 h-100 col-12 h-sm-50 col-xxl-8">
-        <div className="h-100 d-flex flex-column" style={{ padding: "1px" }}>
-
-
-            <div className="d-flex">
-              <h4 class="text-body m-3">
-                  Visão Geral
-              </h4>
-              <select class="form-select form-select-sm ms-auto align-items-center mt-2 me-2" id="option-carteiras" style={{width: "200px", height: "40px"}} defaultValue="todas_carteiras" onChange={selecionarCarteira}>
-                <option value="todas_carteiras" selected>Todas Carteiras</option>
-                {
-                  carteiras?.map(carteira => {
                     return (
-                      <option value={carteira._id}>{carteira.nome}</option>
-                    )
-                  })
-                }
-              </select>
-            </div>
+    <div className="container-fluid px-0 py-2">
+      {/* Cards de Métricas */}
+      <div className="row g-3 mb-3 mx-0">
+        <div className="col-md-3">
+          <MetricCard
+            title="Saldo em Reais"
+            value={formatCurrency(10000)}
 
-            <hr className="m-0 mt-1"/>
-
-            <div className="mx-0 row col-12 flex-grow-1">
-
-              <div className="col-4 col-sm-2 border-end d-flex flex-column justify-content-between">
-                  <div className="py-3 border-bottom">
-                    <p class="text-body-tertiary mb-4 pt-2 d-flex fs-8">
-                          Aportes
-                      <div className="text-primary">
-                          <span class="fas fa-coins ms-2"></span>
-                      </div>                            
-                    </p>
-                    
-                    <h5 class="text-body-highlight mb-2">
-                      {dadosDashboard ? (
-                        dadosDashboard?.aportes.toLocaleString('en',{style: 'currency', currency: 'USD'})
-                      ) : (
-                        <span className="placeholder-glow d-flex">
-                            <span className="placeholder col-6 justify-content-center"></span>
-                        </span>
-                      )}
-                    </h5>
-
-                    
+          />
                   </div>
-                  <div className=" py-3 border-bottom">
-                    <p className="text-body-tertiary mb-4 pt-2 d-flex fs-8">
-                      Saldo
-                      <div className="text-success">
-                        <span className="fas fa-dollar-sign ms-2"></span>
-                      </div>
-                    </p>
+        <div className="col-md-3">
+          <MetricCard
+            title="Saldo em Cripto"
+            value={formatCurrency(50000)}
 
-                    <h5 className="text-body-highlight mb-2">
-                      {dadosDashboard ? (
-                        dadosDashboard?.saldo.toLocaleString('en', {style: 'currency', currency: 'USD'})
-                      ) : (
-                        <span className="placeholder-glow d-flex">
-                            <span className="placeholder col-6 justify-content-center"></span>
-                        </span>
-                      )}
-                    </h5>
+          />
+                      </div>
+        <div className="col-md-3">
+          <MetricCard
+            title="Total de Aportes"
+            value={formatCurrency(75000)}
+
+          />
                   </div>
+        <div className="col-md-3">
+          <MetricCard
+            title="Lucro Total"
+            value={formatCurrency(15000)}
 
-                  <div className="py-3">
-                    <div class="d-flex align-items-center mb-2 gap-2 pt-2">
-                      {dadosDashboard?.lucro.nominal < 0 ? (
-                      <div className="d-flex align-items-center mb-3">
-                        <p class="text-body-tertiary d-flex fs-8 mb-0">
-                          Prejuízo
-                        </p>
-                          <div className="text-danger ms-2">
-                            <span id="1" class="fw-bold" data-feather="trending-down" style={{width: "24px", height: "24px"}}></span>
-                        </div>
-                      </div>
-                      ) : (
-                        <div className="d-flex align-items-center mb-3">
-                        <p class="text-body-tertiary d-flex fs-8 mb-0">
-                          Lucro
-                        </p>
-                        <div className="text-success ms-2">
-                          <span id="2" class="fw-bold" data-feather="trending-up" style={{width: "24px", height: "24px"}}></span>
-                        </div>
-                      </div>
-                      )}
-
-                      </div>
-                      <h5 class="text-body-highlight mb-2" style={{
-                        width: "170px", // Ajuste conforme necessário
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}> 
-                        {dadosDashboard ? (
-                          `${dadosDashboard.lucro.nominal.toLocaleString('en',{style: 'currency', currency: 'USD'})} (${(dadosDashboard.lucro.porcentual ?? 0.00).toFixed(2)}%)`
-                        ) : (
-                          <span className="placeholder-glow d-flex">
-                            <span className="placeholder col-6 justify-content-center"></span>
-                          </span>
-                        )}
-                      </h5>
+          />
                   </div>
               </div>
 
-              <div className="col-8 h-50 col-sm-5 h-sm-100 border-end-xl">
-                <AporteSaldo3 dados={graficoLinhaAtual ?? dadosGraficoLinha?.geral} />
-              </div>
-
-
-              <div className="col-12 h-50 col-sm-5 h-sm-100">
-                <GraficoPizza dados={dadosGraficoPizza} />
-              </div>
-
-            </div>      
-          </div>
+      {/* Container para os cards grandes */}
+      <div className="row g-3 mx-0">
+        <div className="col-md-9">
+          <OverviewCard height={cardHeight} />
         </div>
-        <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-            <MedoGanancia3 />
+        <div className="col-md-3">
+          <WalletsCard height={cardHeight} />
         </div>
-        <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-          <MaioresGanhos dados={maioresGanhos} />
+        <div className="col-md-6">
+          <MarketVariations height={cardHeight} />
         </div>
-        <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-          <MaioresPerdas dados={maioresPerdas} />
+        <div className="col-md-6">
+          <MarketThermometer height={cardHeight} />
         </div>
-        <div className="p-2 h-50 col-12 col-sm-6 col-xxl-4">
-          <Carteiras carteiras={carteiras} funcaoRecarregar={atualizarDados}/>
-        </div>
-        <AdicionarAporte carteiras={carteiras} funcaoRecarregar={atualizarDados}/>
-        <CriarCarteira botaoEnviar={funcaoCriarCarteira} mensagemErro={mensagemErroCriarCarteira}/>
       </div>
     </div>
-  )
+  );
 }
 
 export default Dashboard;

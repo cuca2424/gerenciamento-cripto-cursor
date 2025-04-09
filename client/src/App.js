@@ -1,89 +1,42 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { jwtDecode as jwt_decode } from "jwt-decode";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React from "react";
 import { UserProvider } from "./contexts/UserContext";
 
-import Layout from "./paginas/Privadas/Layout";
+import Layout from "./Layout";
 import Dashboard from "./paginas/Privadas/Dashboard";
 import Filtros from "./paginas/Privadas/Filtros";
 import ImpostoDeRenda from "./paginas/Privadas/ImpostoDeRenda";
-import SentimentoDeMercado from "./paginas/Privadas/SentimentoDeMercado";
 import Login from "./paginas/Auth/Login";
 import Cadastro from "./paginas/Auth/Cadastro";
 import EsqueceuSenha from "./paginas/Auth/EsqueceuSenha";
 import Sucesso from "./paginas/PosCheckout/Sucesso";
 import Cancelado from "./paginas/PosCheckout/Cancelado";
-import Teste01 from "./paginas/Testes/Teste01";
 import Notificacoes from "./paginas/Privadas/Notificacoes";
 import Estrategias from "./paginas/Privadas/Estrategias";
-
-
-const Privado = ({ Item }) => {
-    const [estaAutenticado, setEstaAutenticado] = useState(false);
-    const [carregando, setCarregando] = useState(true);
-
-    useEffect(() => {
-        const token = localStorage.getItem("token");
-        if (token) {
-            try {
-                const decoded = jwt_decode(token); 
-                const isTokenValid = decoded.exp * 1000 > Date.now();
-                setEstaAutenticado(isTokenValid);
-            } catch (error) {
-                console.error("Token inválido:", error);
-                setEstaAutenticado(false);
-            }
-        }
-    setCarregando(false);
-    }, []);
-
-    if (!carregando) {
-        return estaAutenticado ? <Item /> : <Navigate to="/login" />;
-    }
-
-};
-
-const LoginProtegido = ({ children }) => {
-    console.log("bateu aqui");
-    const token = localStorage.getItem("token");
-
-    if (token) {
-        try {
-            const decoded = jwt_decode(token);
-            const isTokenValid = decoded.exp * 1000 > Date.now();
-            if (isTokenValid) {
-                return <Navigate to="/" />;
-            }
-        } catch (error) {
-            console.error("Erro ao verificar o token:", error);
-        }
-    }
-
-    return children;
-};
-
-
+import Carteiras from "./paginas/Privadas/Carteiras";
+import DepositoSaque from "./paginas/Privadas/DepositoSaque";
+import Historico from "./paginas/Privadas/Historico";
 
 function App() {
     return(
         <UserProvider>
             <Router>
                 <Routes>
-                    <Route path="/" element={< Privado Item={() => <Layout componente={<Dashboard />}/>}/>}/>
-                    <Route path="/estrategias" element={< Privado Item={() => <Layout componente={<Estrategias />}/>}/>}/>
-                    <Route path="/filtros" element={< Privado Item={() => <Layout componente={<Filtros />}/>}/>}/>
-                    <Route path="/imposto_de_renda" element={< Privado Item={() => <Layout componente={<ImpostoDeRenda />}/>}/>}/>
-                    <Route path="/sentimento_de_mercado" element={< Privado Item={() => <Layout componente={<SentimentoDeMercado />}/>}/>}/>
-                    <Route path="/notificacoes" element={< Privado Item={() => <Layout componente={<Notificacoes/>}/>}/>}/>
+                    <Route path="/" element={<Layout componente={<Dashboard />}/>}/>
+                    <Route path="/estrategias" element={<Layout componente={<Estrategias />}/>}/>
+                    <Route path="/filtros" element={<Layout componente={<Filtros />}/>}/>
+                    <Route path="/imposto_de_renda" element={<Layout componente={<ImpostoDeRenda />}/>}/>
+                    <Route path="/notificacoes" element={<Layout componente={<Notificacoes/>}/>}/>
+                    <Route path="/carteiras" element={<Layout componente={<Carteiras />}/>}/>
+                    <Route path="/deposito-saque" element={<Layout componente={<DepositoSaque />}/>}/>
+                    <Route path="/historico" element={<Layout componente={<Historico />}/>}/>
                     
-                    <Route path="/login" element={<LoginProtegido children={<Login />} />} />
-
+                    <Route path="/login" element={<Login />} />
                     <Route path="/cadastro" element={<Cadastro />} />
                     <Route path="/esqueceu_senha" element={<EsqueceuSenha />} />
                     <Route path="/sucesso" element={<Sucesso />} />
                     <Route path="/cancelado" element={<Cancelado />} />
-                    <Route path="*" element={<Login />} />
-                    <Route path="/test01" element={<Layout componente={<Teste01 />}/>} />
+                    <Route path="*" element={<Layout componente={<Dashboard />}/>} />
                 </Routes>
             </Router> 
         </UserProvider>
