@@ -1,26 +1,29 @@
+
 const jwt = require('jsonwebtoken');
 const { ObjectId } = require('mongodb');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_aqui';
 
-exports.authMiddleware = (req, res, next) => {
-  // Skip authentication for all routes
-  next();
+module.exports = (req, res, next) => {
+  // Obter token do header Authorization
+  const authHeader = req.headers.authorization;
   
-  // Original authentication code (commented out for reference)
-  /*
-  const token = req.headers.authorization?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Token não fornecido' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acesso não autorizado. Token não fornecido' });
   }
+  
+  const token = authHeader.split(' ')[1];
   
   try {
+    // Verificar token
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
+    
+    // Adicionar ID do usuário ao objeto da requisição
+    req.userId = decoded.id;
+    
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Token inválido' });
+    console.error('Erro de autenticação:', error);
+    res.status(401).json({ error: 'Token inválido' });
   }
-  */
 };

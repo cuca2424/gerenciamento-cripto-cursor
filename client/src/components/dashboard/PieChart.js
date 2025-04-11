@@ -1,23 +1,55 @@
 import React, { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
 
-const PieChart = ({ height }) => {
+/**
+ * Componente de Gráfico de Pizza
+ * @param {Object} props
+ * @param {number} props.height - Altura do container do gráfico
+ * @param {Object} props.data - Dados para o gráfico
+ * @param {string[]} props.data.labels - Nomes dos segmentos
+ * @param {number[]} props.data.data - Valores dos segmentos
+ * @param {string[]} props.data.backgroundColor - Cores dos segmentos
+ * @param {string} [props.title] - Título do gráfico (opcional)
+ */
+const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
   useEffect(() => {
     if (chartRef.current) {
+      console.log('PieChart data:', data);
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+      }
+
       chartInstance.current = echarts.init(chartRef.current);
-      
+
       const option = {
         tooltip: {
           trigger: 'item',
-          formatter: '{b}: {c} ({d}%)'
+          padding: [7, 10],
+          backgroundColor: '#fff',
+          borderColor: '#e9ecef',
+          textStyle: { color: '#5e6e82' },
+          borderWidth: 1,
+          formatter: (params) => {
+            const total = data.data.reduce((sum, value) => sum + value, 0);
+            const percentual = ((params.value / total) * 100).toFixed(2);
+            
+            // Formatar o valor em reais
+            const valor = params.value;
+            const valorFormatado = new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL'
+            }).format(valor);
+            
+            // Mostrar nome, valor total em reais e porcentagem
+            return `${params.name}: ${valorFormatado} (${percentual}%)`;
+          }
         },
         legend: {
           orient: 'vertical',
-          right: 10,
-          top: 'middle',
+          left: 'right',
           textStyle: {
             color: '#666',
             fontSize: 12
@@ -25,92 +57,55 @@ const PieChart = ({ height }) => {
         },
         series: [
           {
-            name: 'Distribuição',
+            name: data.labels.length > 0 ? 'Distribuição' : '',
             type: 'pie',
             radius: ['40%', '70%'],
-            center: ['40%', '50%'],
+            center: ['50%', '45%'],
             avoidLabelOverlap: false,
-            itemStyle: {
-              borderRadius: 5,
-              borderWidth: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.1)',
-              shadowBlur: 5
-            },
+            itemStyle: {},
             label: {
-              show: true,
-              position: 'outside',
-              formatter: '{b}: {d}%',
-              fontSize: 12,
-              color: '#666'
+              show: false,
+              position: 'center'
             },
-            emphasis: {
-              itemStyle: {
-                shadowBlur: 10,
-                shadowOffsetX: 0,
-                shadowColor: 'rgba(0, 0, 0, 0.5)'
-              }
+            labelLine: {
+              show: false
             },
-            data: [
-              { 
-                value: 1048, 
-                name: 'Bitcoin',
-                itemStyle: { color: '#f7931a' }
-              },
-              { 
-                value: 735, 
-                name: 'Ethereum',
-                itemStyle: { color: '#627eea' }
-              },
-              { 
-                value: 580, 
-                name: 'Cardano',
-                itemStyle: { color: '#0033ad' }
-              },
-              { 
-                value: 484, 
-                name: 'Solana',
-                itemStyle: { color: '#00ffbd' }
-              },
-              { 
-                value: 300, 
-                name: 'Polkadot',
-                itemStyle: { color: '#e6007a' }
-              }
-            ]
+            data: data.labels.map((label, index) => ({
+              value: data.data[index],
+              name: label,
+              itemStyle: { color: data.backgroundColor[index] }
+            }))
           }
         ]
       };
 
       chartInstance.current.setOption(option);
 
-      // Adiciona listener para redimensionamento
       const handleResize = () => {
         chartInstance.current?.resize();
       };
+
       window.addEventListener('resize', handleResize);
 
       return () => {
         window.removeEventListener('resize', handleResize);
-        chartInstance.current?.dispose();
+        if (chartInstance.current) {
+          chartInstance.current.dispose();
+        }
       };
     }
-  }, []);
+  }, [data]);
 
   return (
-    <div className="card" style={{ height }}>
-      <div className="card-body p-3">
-        <h5 className="card-title mb-3 fw-bold">Distribuição de Criptomoedas</h5>
-        <div className="border-bottom mb-3"></div>
-        <div 
-          ref={chartRef} 
-          style={{ 
-            width: '100%', 
-            height: 'calc(100% - 30px)',
-            minHeight: '300px' // Altura mínima para garantir que o gráfico seja visível
-          }} 
-        />
-      </div>
-    </div>
+    <div 
+      ref={chartRef} 
+      style={{ 
+        width: '100%', 
+        height: height,
+        minHeight: '200px',
+        paddingTop: '10px'
+      }}
+    />
   );
 };
 

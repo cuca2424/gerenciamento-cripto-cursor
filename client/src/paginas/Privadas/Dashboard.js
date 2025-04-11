@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import MetricCard from '../../components/dashboard/MetricCard';
 import MarketVariations from '../../components/dashboard/MarketVariations';
 import EmptyCard from '../../components/dashboard/EmptyCard';
@@ -8,9 +8,52 @@ import MarketThermometer from '../../components/dashboard/MarketThermometer';
 import useAvailableHeight from '../../hooks/useAvailableHeight';
 
 function Dashboard() {
+  const [overviewData, setOverviewData] = useState({
+    saldoReais: 0,
+    saldoCripto: 0,
+    aporteTotal: 0,
+    lucroTotal: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   // Considerando que temos um header de 64px e os cards de métricas com 120px + 24px de margem
   const availableHeight = useAvailableHeight(200);
   const cardHeight = availableHeight / 2 - 12; // Dividir por 2 e subtrair metade do gap (24px/2)
+  const fullWidthCardHeight = availableHeight - 12; // Altura maior para quando ocupar a tela toda
+
+  useEffect(() => {
+    const fetchOverviewData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/usuario/geral`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao carregar dados do usuário');
+        }
+
+        const data = await response.json();
+        setOverviewData({
+          saldoReais: data.saldoReais || 0,
+          saldoCripto: data.saldoCarteiras || 0,
+          aporteTotal: data.aporteTotal || 0,
+          lucroTotal: data.lucroTotal || 0
+        });
+      } catch (err) {
+        setError(err.message);
+        console.error('Erro ao carregar dados:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverviewData();
+  }, []);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -47,35 +90,66 @@ function Dashboard() {
     { nome: 'Tezos', sigla: 'XTZ', variacao: -2.5, preco: 15 }
   ];
 
-                    return (
+  if (loading) {
+    return (
+      <div className="container-fluid px-0 py-2">
+        <div className="row g-3 mb-3 mx-0">
+          <div className="col-6 col-lg-3">
+            <MetricCard title="Carregando..." value="..." centered />
+          </div>
+          <div className="col-6 col-lg-3">
+            <MetricCard title="Carregando..." value="..." centered />
+          </div>
+          <div className="col-6 col-lg-3">
+            <MetricCard title="Carregando..." value="..." centered />
+          </div>
+          <div className="col-6 col-lg-3">
+            <MetricCard title="Carregando..." value="..." centered />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-fluid px-0 py-2">
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
     <div className="container-fluid px-0 py-2">
       {/* Cards de Métricas */}
       <div className="row g-3 mb-3 mx-0">
-        <div className="col-md-3">
+        <div className="col-6 col-lg-3">
           <MetricCard
             title="Saldo em Reais"
-            value={formatCurrency(10000)}
+            value={formatCurrency(overviewData.saldoReais)}
             centered
           />
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-lg-3">
           <MetricCard
             title="Saldo em Cripto"
-            value={formatCurrency(50000)}
+            value={formatCurrency(overviewData.saldoCripto)}
             centered
           />
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-lg-3">
           <MetricCard
             title="Total de Aportes"
-            value={formatCurrency(75000)}
+            value={formatCurrency(overviewData.aporteTotal)}
             centered
           />
         </div>
-        <div className="col-md-3">
+        <div className="col-6 col-lg-3">
           <MetricCard
             title="Lucro Total"
-            value={formatCurrency(15000)}
+            value={formatCurrency(overviewData.lucroTotal)}
             centered
           />
         </div>
@@ -83,16 +157,23 @@ function Dashboard() {
 
       {/* Container para os cards grandes */}
       <div className="row g-3 mx-0">
-        <div className="col-md-9">
-          <OverviewCard height={cardHeight} />
+        {/* Visão Geral - Ocupa col-lg-9 em telas grandes, col-12 em menores */}
+        <div className="col-12 col-lg-9">
+          <OverviewCard height={window.innerWidth < 992 ? fullWidthCardHeight : cardHeight} />
         </div>
-        <div className="col-md-3">
+
+        {/* Carteiras - Ocupa col-lg-3 em telas grandes, col-md-6 em médias, col-12 em pequenas */}
+        <div className="col-12 col-md-6 col-lg-3">
           <WalletsCard height={cardHeight} />
         </div>
-        <div className="col-md-6">
+
+        {/* Maiores Variações - Ocupa col-lg-6 em telas grandes, col-md-6 em médias, col-12 em pequenas */}
+        <div className="col-12 col-md-6 col-lg-6">
           <MarketVariations height={cardHeight} />
         </div>
-        <div className="col-md-6">
+
+        {/* Termômetro - Ocupa col-lg-6 em telas grandes, col-12 em menores */}
+        <div className="col-12 col-lg-6">
           <MarketThermometer height={cardHeight} />
         </div>
       </div>

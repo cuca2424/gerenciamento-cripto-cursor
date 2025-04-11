@@ -140,7 +140,7 @@ function Layout({componente}) {
 
                   {/* item do menu lateral - Carteiras */}
                   <div class="nav-item-wrapper">
-                    <Link to={"/carteiras"} className={rotaAtual === "/carteiras" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Carteiras", rota: "/carteiras", icone: "credit-card"})}>
+                    <Link to={"/carteiras"} className={rotaAtual.startsWith("/carteiras") ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Carteiras", rota: "/carteiras", icone: "credit-card"})}>
                       <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="credit-card" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Carteiras</span></span>
                       </div>
                     </Link>
@@ -277,30 +277,40 @@ function Layout({componente}) {
               <li class="nav-item">
                 {/* botao do tema */}
                 <div class="theme-control-toggle px-2">
-
                   <input class="form-check-input ms-0 theme-control-toggle-input" type="checkbox" data-theme-control="phoenixTheme" value="dark" id="themeControlToggle" />
-
                   <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="themeControlToggle" data-bs-placement="left" data-bs-title="Switch theme" style={{height: "32px", width: "32px"}}>
-                    <span class="icon" data-feather="moon" style={{height: "16px", width: "16px"}}></span></label>
-                    
-                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="themeControlToggle" data-bs-placement="left" data-bs-title="Switch theme" style={{height: "32px", width: "32px"}}><span class="icon" data-feather="sun" style={{height: "16px", width: "16px"}}></span></label>
-
+                    <span class="icon" data-feather="moon" style={{height: "16px", width: "16px"}}></span>
+                  </label>
+                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="themeControlToggle" data-bs-placement="left" data-bs-title="Switch theme" style={{height: "32px", width: "32px"}}>
+                    <span class="icon" data-feather="sun" style={{height: "16px", width: "16px"}}></span>
+                  </label>
                 </div>
               </li>
 
               <li class="nav-item">
-              <button
-                onClick={() => setCurrency("USD")}
-                style={{ fontWeight: currency === "USD" ? "bold" : "normal" }}
-              >
-                USD
-              </button>
-              <button
-                onClick={() => setCurrency("BRL")}
-                style={{ fontWeight: currency === "BRL" ? "bold" : "normal" }}
-              >
-                BRL
-              </button>
+                {/* botao de moeda USD */}
+                <div class="theme-control-toggle px-2">
+                  <input class="form-check-input ms-0 theme-control-toggle-input" type="radio" name="currency" id="currencyUSD" checked={currency === "USD"} onChange={() => setCurrency("USD")} />
+                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="currencyUSD" data-bs-placement="left" data-bs-title="USD" style={{height: "32px", width: "32px", opacity: currency === "USD" ? "1" : "0.3"}}>
+                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>USD</span>
+                  </label>
+                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="currencyUSD" data-bs-placement="left" data-bs-title="USD" style={{height: "32px", width: "32px", opacity: currency === "USD" ? "1" : "0.3"}}>
+                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>USD</span>
+                  </label>
+                </div>
+              </li>
+
+              <li class="nav-item">
+                {/* botao de moeda BRL */}
+                <div class="theme-control-toggle px-2">
+                  <input class="form-check-input ms-0 theme-control-toggle-input" type="radio" name="currency" id="currencyBRL" checked={currency === "BRL"} onChange={() => setCurrency("BRL")} />
+                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="currencyBRL" data-bs-placement="left" data-bs-title="BRL" style={{height: "32px", width: "32px", opacity: currency === "BRL" ? "1" : "0.3"}}>
+                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>BRL</span>
+                  </label>
+                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="currencyBRL" data-bs-placement="left" data-bs-title="BRL" style={{height: "32px", width: "32px", opacity: currency === "BRL" ? "1" : "0.3"}}>
+                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>BRL</span>
+                  </label>
+                </div>
               </li>
               
               {/* foto de perfil */}

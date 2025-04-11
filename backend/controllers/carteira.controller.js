@@ -1,5 +1,3 @@
-const { ObjectId } = require('mongodb');
-
 // Controller para as operações relacionadas às carteiras
 
 // Criar uma nova carteira
@@ -12,7 +10,7 @@ exports.createWallet = async (req, res) => {
     }
     
     const newWallet = {
-      userId: req.userId,
+      userId: req.userId, // Associar ao usuário atual
       nome,
       ativos: [],
       saldoTotal: 0,
@@ -24,9 +22,20 @@ exports.createWallet = async (req, res) => {
     
     const result = await req.db.collection('carteiras').insertOne(newWallet);
     
+    // Registrar no histórico
+    await req.db.collection('historico').insertOne({
+      userId: req.userId, // Associar ao usuário atual
+      tipo: 'criacao',
+      descricao: `Criou a carteira ${nome}`,
+      valor: 0,
+      data: new Date(),
+      carteiraId: result.insertedId,
+      carteiraNome: nome
+    });
+    
     res.status(201).json({
-      message: 'Carteira criada com sucesso',
-      carteira: { ...newWallet, _id: result.insertedId }
+      id: result.insertedId,
+      ...newWallet
     });
   } catch (error) {
     console.error('Erro ao criar carteira:', error);
@@ -40,18 +49,13 @@ exports.addAsset = async (req, res) => {
     const { id } = req.params;
     const { nome, quantidade, valorUnitario } = req.body;
     
-    // Validar se o ID é um ObjectId válido
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'ID da carteira inválido' });
-    }
-    
     if (!nome || !quantidade || !valorUnitario) {
       return res.status(400).json({ error: 'Nome, quantidade e valor unitário são obrigatórios' });
     }
     
     // Buscar a carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId
     });
     
@@ -60,7 +64,7 @@ exports.addAsset = async (req, res) => {
     }
     
     // Buscar usuário para verificar saldo
-    const user = await req.db.collection('usuarios').findOne({ _id: new ObjectId(req.userId) });
+    const user = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     
     const valorTotal = quantidade * valorUnitario;
     
@@ -69,14 +73,14 @@ exports.addAsset = async (req, res) => {
     }
     
     // Verificar se a criptomoeda existe na tabela de criptomoedas
-    const cryptoData = await req.db.collection('cripto').findOne({ nome });
+    const cryptoData = await req.db.collection('criptomoedas').findOne({ nome });
     if (!cryptoData) {
       return res.status(404).json({ error: 'Criptomoeda não encontrada na base de dados' });
     }
     
     // Atualizar saldo do usuário
     await req.db.collection('usuarios').updateOne(
-      { _id: new ObjectId(req.userId) },
+      { _id: new req.ObjectId(req.userId) },
       { 
         $inc: { 
           saldoReais: -valorTotal,
@@ -102,7 +106,7 @@ exports.addAsset = async (req, res) => {
         quantidade: newQuantity,
         valorUnitario: newAvgPrice,
         valorTotal: newTotal,
-        precoAtual: cryptoData.preco
+        precoAtual: cryptoData.precoAtual
       };
     } else {
       // Adicionar novo ativo
@@ -111,18 +115,39 @@ exports.addAsset = async (req, res) => {
         quantidade,
         valorUnitario,
         valorTotal,
-        precoAtual: cryptoData.preco
+        percentual: 0,
+        precoAtual: cryptoData.precoAtual
       });
     }
     
+    // Calcular o valor atual total dos ativos com base nos preços atuais
+    const saldoAtualTotal = updatedAtivos.reduce((total, ativo) => {
+      return total + (ativo.quantidade * ativo.precoAtual);
+    }, 0);
+    
+    // Atualizar totais da carteira
+    const newAporteTotal = wallet.aporteTotal + valorTotal;
+    
+    // Recalcular percentuais com base no saldo atual total
+    updatedAtivos = updatedAtivos.map(ativo => ({
+      ...ativo,
+      percentual: (ativo.quantidade * ativo.precoAtual / saldoAtualTotal) * 100
+    }));
+    
+    // Calcular lucro e percentual de lucro
+    const lucro = saldoAtualTotal - newAporteTotal;
+    const percentualLucro = newAporteTotal > 0 ? (lucro / newAporteTotal) * 100 : 0;
+    
     // Atualizar a carteira
     await req.db.collection('carteiras').updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new req.ObjectId(id) },
       { 
         $set: { 
           ativos: updatedAtivos,
-          saldoTotal: wallet.saldoTotal + valorTotal,
-          aporteTotal: wallet.aporteTotal + valorTotal
+          saldoTotal: saldoAtualTotal,
+          aporteTotal: newAporteTotal,
+          lucro: lucro,
+          percentualLucro: percentualLucro
         } 
       }
     );
@@ -130,16 +155,18 @@ exports.addAsset = async (req, res) => {
     // Registrar no histórico
     await req.db.collection('historico').insertOne({
       userId: req.userId,
-      carteiraId: new ObjectId(id),
       tipo: 'compra',
-      ativo: nome,
-      quantidade,
-      preco: valorUnitario,
-      valorTotal,
-      data: new Date()
+      descricao: `Comprou ${quantidade} ${nome}`,
+      valor: valorTotal,
+      data: new Date(),
+      carteiraId: new req.ObjectId(id),
+      carteiraNome: wallet.nome
     });
     
-    res.json({ message: 'Ativo adicionado com sucesso' });
+    res.json({
+      message: `Compra de ${quantidade} ${nome} realizada com sucesso`,
+      saldoRestante: user.saldoReais - valorTotal
+    });
   } catch (error) {
     console.error('Erro ao adicionar ativo:', error);
     res.status(500).json({ error: 'Erro ao adicionar ativo' });
@@ -150,20 +177,15 @@ exports.addAsset = async (req, res) => {
 exports.sellAsset = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, quantidade, preco } = req.body;
+    const { nome, quantidade, valorUnitario } = req.body;
     
-    // Validar se o ID é um ObjectId válido
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'ID da carteira inválido' });
-    }
-    
-    if (!nome || !quantidade || !preco) {
-      return res.status(400).json({ error: 'Nome, quantidade e preço são obrigatórios' });
+    if (!nome || !quantidade || !valorUnitario) {
+      return res.status(400).json({ error: 'Nome, quantidade e valor unitário são obrigatórios' });
     }
     
     // Buscar a carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId
     });
     
@@ -171,66 +193,93 @@ exports.sellAsset = async (req, res) => {
       return res.status(404).json({ error: 'Carteira não encontrada' });
     }
     
-    const ativo = wallet.ativos.find(a => a.nome === nome);
-    if (!ativo || ativo.quantidade < quantidade) {
-      return res.status(400).json({ error: 'Quantidade insuficiente do ativo' });
+    // Verificar se o ativo existe na carteira
+    const existingAssetIndex = wallet.ativos.findIndex(a => a.nome === nome);
+    
+    if (existingAssetIndex === -1) {
+      return res.status(404).json({ error: `Ativo ${nome} não encontrado na carteira` });
     }
     
-    const valorTotal = quantidade * preco;
-    const lucro = valorTotal - (quantidade * ativo.valorUnitario);
+    const existingAsset = wallet.ativos[existingAssetIndex];
+    
+    if (existingAsset.quantidade < quantidade) {
+      return res.status(400).json({ error: `Quantidade insuficiente de ${nome} para venda` });
+    }
+    
+    const valorVenda = quantidade * valorUnitario;
+    const valorCusto = quantidade * existingAsset.valorUnitario;
+    const lucroVenda = valorVenda - valorCusto;
     
     // Atualizar saldo do usuário
     await req.db.collection('usuarios').updateOne(
-      { _id: new ObjectId(req.userId) },
-      { $inc: { saldoReais: valorTotal } }
+      { _id: new req.ObjectId(req.userId) },
+      { $inc: { saldoReais: valorVenda } }
     );
     
-    // Atualizar carteira
-    if (ativo.quantidade === quantidade) {
-      // Remover ativo se vender tudo
-    await req.db.collection('carteiras').updateOne(
-        { _id: new ObjectId(id) },
-        {
-          $pull: { ativos: { nome } },
-          $inc: {
-            saldoTotal: -valorTotal,
-            aporteTotal: -(quantidade * ativo.valorUnitario),
-            lucro
-          }
-        }
-      );
-    } else {
-      // Atualizar quantidade e valores
-      await req.db.collection('carteiras').updateOne(
-        { _id: new ObjectId(id) },
-        {
-          $set: {
-            'ativos.$[elem].quantidade': ativo.quantidade - quantidade
-          },
-          $inc: {
-            saldoTotal: -valorTotal,
-            aporteTotal: -(quantidade * ativo.valorUnitario),
-            lucro
-          }
-        },
-        { arrayFilters: [{ 'elem.nome': nome }] }
-      );
+    // Atualizar ativo na carteira
+    let updatedAtivos = [...wallet.ativos];
+    updatedAtivos[existingAssetIndex] = {
+      ...existingAsset,
+      quantidade: existingAsset.quantidade - quantidade,
+      valorTotal: (existingAsset.quantidade - quantidade) * existingAsset.valorUnitario
+    };
+    
+    // Remover ativo se quantidade for zero
+    if (updatedAtivos[existingAssetIndex].quantidade === 0) {
+      updatedAtivos = updatedAtivos.filter((_, index) => index !== existingAssetIndex);
     }
+    
+    // Recalcular valor atual total dos ativos com base nos preços atuais
+    const saldoAtualTotal = updatedAtivos.reduce((total, ativo) => {
+      return total + (ativo.quantidade * ativo.precoAtual);
+    }, 0);
+    
+    // Recalcular percentuais com base no saldo atual total
+    if (saldoAtualTotal > 0) {
+      updatedAtivos = updatedAtivos.map(ativo => ({
+        ...ativo,
+        percentual: (ativo.quantidade * ativo.precoAtual / saldoAtualTotal) * 100
+      }));
+    }
+    
+    // Calcular o lucro e percentual de lucro
+    const lucro = saldoAtualTotal - wallet.aporteTotal;
+    const percentualLucro = wallet.aporteTotal > 0 ? (lucro / wallet.aporteTotal) * 100 : 0;
+    
+    // Atualizar a carteira
+    await req.db.collection('carteiras').updateOne(
+      { _id: new req.ObjectId(id) },
+      { 
+        $set: { 
+          ativos: updatedAtivos,
+          saldoTotal: saldoAtualTotal,
+          lucro: lucro,
+          percentualLucro: percentualLucro
+        } 
+      }
+    );
     
     // Registrar no histórico
     await req.db.collection('historico').insertOne({
       userId: req.userId,
-      carteiraId: new ObjectId(id),
       tipo: 'venda',
-      ativo: nome,
-      quantidade,
-      preco,
-      valorTotal,
-      lucro,
-      data: new Date()
+      descricao: `Vendeu ${quantidade} ${nome}`,
+      valor: valorVenda,
+      lucro: lucroVenda,
+      data: new Date(),
+      carteiraId: new req.ObjectId(id),
+      carteiraNome: wallet.nome
     });
     
-    res.json({ message: 'Ativo vendido com sucesso' });
+    const resultMessage = lucroVenda >= 0 
+      ? `Venda realizada com lucro de R$ ${lucroVenda.toFixed(2)}` 
+      : `Venda realizada com prejuízo de R$ ${Math.abs(lucroVenda).toFixed(2)}`;
+    
+    res.json({
+      message: `Venda de ${quantidade} ${nome} realizada com sucesso. ${resultMessage}`,
+      lucroVenda,
+      saldoAtualizado: valorVenda
+    });
   } catch (error) {
     console.error('Erro ao vender ativo:', error);
     res.status(500).json({ error: 'Erro ao vender ativo' });
@@ -244,7 +293,7 @@ exports.updateWalletPrices = async (req, res) => {
     
     // Buscar a carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId
     });
     
@@ -294,7 +343,7 @@ exports.updateWalletPrices = async (req, res) => {
     
     // Atualizar a carteira
     await req.db.collection('carteiras').updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new req.ObjectId(id) },
       { 
         $set: { 
           ativos: updatedAtivos,
@@ -307,7 +356,7 @@ exports.updateWalletPrices = async (req, res) => {
     );
     
     // Retornar carteira atualizada
-    const updatedWallet = await req.db.collection('carteiras').findOne({ _id: new ObjectId(id) });
+    const updatedWallet = await req.db.collection('carteiras').findOne({ _id: new req.ObjectId(id) });
     res.json(updatedWallet);
   } catch (error) {
     console.error('Erro ao atualizar preços da carteira:', error);
@@ -322,7 +371,7 @@ exports.getAssets = async (req, res) => {
     
     const wallet = await req.db.collection('carteiras').findOne(
       { 
-        _id: new ObjectId(id),
+        _id: new req.ObjectId(id),
         userId: req.userId
       },
       { projection: { ativos: 1 } }
@@ -336,10 +385,15 @@ exports.getAssets = async (req, res) => {
     const updatedAtivos = await Promise.all(wallet.ativos.map(async (ativo) => {
       const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
       if (cryptoData) {
+        const valorAtual = ativo.quantidade * cryptoData.precoAtual;
+        const valorInicial = ativo.quantidade * ativo.valorUnitario;
+        const variacao = valorInicial > 0 ? ((valorAtual - valorInicial) / valorInicial) * 100 : 0;
+        
         return {
           ...ativo,
           precoAtual: cryptoData.precoAtual,
-          valorAtual: ativo.quantidade * cryptoData.precoAtual
+          valorAtual: valorAtual,
+          variacao: variacao
         };
       }
       return ativo;
@@ -357,49 +411,40 @@ exports.getWalletBalance = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+    const wallet = await req.db.collection('carteiras').findOne(
+      { 
+        _id: new req.ObjectId(id),
         userId: req.userId
-    });
+      }
+    );
     
     if (!wallet) {
       return res.status(404).json({ error: 'Carteira não encontrada' });
     }
     
-    let saldoReais = 0;
-    let saldoCripto = 0;
-    let lucroTotal = 0;
-    let lucroPercentual = 0;
+    // Calcular saldo atual com base nos preços atuais das criptomoedas
+    let saldoAtual = 0;
     
     if (wallet.ativos && wallet.ativos.length > 0) {
       for (const ativo of wallet.ativos) {
-        const cryptoData = await req.db.collection('cripto').findOne({ nome: ativo.nome });
-        
+        const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
         if (cryptoData) {
-          const valorAtual = ativo.quantidade * cryptoData.preco;
-          saldoCripto += valorAtual;
-          
-          // Calcular lucro para este ativo
-          const lucroAtivo = valorAtual - (ativo.quantidade * ativo.precoMedio);
-          lucroTotal += lucroAtivo;
+          saldoAtual += ativo.quantidade * cryptoData.precoAtual;
+        } else {
+          saldoAtual += ativo.valorTotal;
         }
       }
     }
     
-    // Calcular saldo em reais (aporte total + lucro)
-    saldoReais = wallet.aporteTotal + lucroTotal;
-    
-    // Calcular percentual de lucro
-    if (wallet.aporteTotal > 0) {
-      lucroPercentual = (lucroTotal / wallet.aporteTotal) * 100;
-    }
+    // Calcular lucro e percentual de lucro
+    const lucro = saldoAtual - wallet.aporteTotal;
+    const percentualLucro = wallet.aporteTotal > 0 ? (lucro / wallet.aporteTotal) * 100 : 0;
     
     res.json({
-      saldoReais,
-      saldoCripto,
+      saldoTotal: saldoAtual,
       aporteTotal: wallet.aporteTotal,
-      lucroTotal,
-      lucroPercentual
+      lucro: lucro,
+      percentualLucro: percentualLucro
     });
   } catch (error) {
     console.error('Erro ao obter saldo da carteira:', error);
@@ -459,14 +504,9 @@ exports.getWallet = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Validar se o ID é um ObjectId válido
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'ID da carteira inválido' });
-    }
-    
     // Adiciona verificação de propriedade da carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId // Verificar se a carteira pertence ao usuário
     });
     
@@ -480,11 +520,11 @@ exports.getWallet = async (req, res) => {
       
       for (let i = 0; i < wallet.ativos.length; i++) {
         const ativo = wallet.ativos[i];
-        const cryptoData = await req.db.collection('cripto').findOne({ nome: ativo.nome });
+        const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
         
         if (cryptoData) {
-          wallet.ativos[i].precoAtual = cryptoData.preco;
-          wallet.ativos[i].valorAtual = ativo.quantidade * cryptoData.preco;
+          wallet.ativos[i].precoAtual = cryptoData.precoAtual;
+          wallet.ativos[i].valorAtual = ativo.quantidade * cryptoData.precoAtual;
           saldoAtual += wallet.ativos[i].valorAtual;
         } else {
           saldoAtual += ativo.valorTotal;
@@ -511,50 +551,45 @@ exports.getWallet = async (req, res) => {
   }
 };
 
-// Obter resumo das carteiras
-exports.getWalletSummary = async (req, res) => {
+// Deletar uma carteira
+exports.deleteWallet = async (req, res) => {
   try {
-    // Buscar todas as carteiras do usuário
-    const carteiras = await req.db.collection('carteiras')
-      .find({ userId: req.userId })
-      .toArray();
+    const { id } = req.params;
     
-    let saldoReais = 0;
-    let saldoCripto = 0;
-    let aporteTotal = 0;
-    let lucroTotal = 0;
+    // Buscar a carteira para verificar se existe e pertence ao usuário
+    const wallet = await req.db.collection('carteiras').findOne({ 
+      _id: new req.ObjectId(id),
+      userId: req.userId
+    });
     
-    // Calcular totais de todas as carteiras
-    for (const carteira of carteiras) {
-      aporteTotal += carteira.aporteTotal || 0;
-      
-      if (carteira.ativos && carteira.ativos.length > 0) {
-        for (const ativo of carteira.ativos) {
-          const cripto = await req.db.collection('cripto').findOne({ nome: ativo.nome });
-          if (cripto) {
-            const valorAtual = ativo.quantidade * cripto.preco;
-            saldoCripto += valorAtual;
-            lucroTotal += valorAtual - (ativo.quantidade * ativo.precoMedio);
-          }
-        }
-      }
+    if (!wallet) {
+      return res.status(404).json({ error: 'Carteira não encontrada' });
     }
     
-    // Calcular saldo em reais
-    saldoReais = aporteTotal + lucroTotal;
-    
-    // Calcular percentual de lucro
-    const lucroPercentual = aporteTotal > 0 ? (lucroTotal / aporteTotal) * 100 : 0;
-    
-    res.json({
-      saldoReais,
-      saldoCripto,
-      aporteTotal,
-      lucroTotal,
-      lucroPercentual
+    // Deletar a carteira
+    const result = await req.db.collection('carteiras').deleteOne({ 
+      _id: new req.ObjectId(id),
+      userId: req.userId
     });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Carteira não encontrada' });
+    }
+    
+    // Registrar no histórico
+    await req.db.collection('historico').insertOne({
+      userId: req.userId,
+      tipo: 'exclusao',
+      descricao: `Excluiu a carteira ${wallet.nome}`,
+      valor: 0,
+      data: new Date(),
+      carteiraId: new req.ObjectId(id),
+      carteiraNome: wallet.nome
+    });
+    
+    res.json({ message: 'Carteira excluída com sucesso' });
   } catch (error) {
-    console.error('Erro ao obter resumo das carteiras:', error);
-    res.status(500).json({ error: 'Erro ao obter resumo das carteiras' });
+    console.error('Erro ao excluir carteira:', error);
+    res.status(500).json({ error: 'Erro ao excluir carteira' });
   }
 };

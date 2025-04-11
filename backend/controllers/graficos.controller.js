@@ -1,5 +1,3 @@
-const { ObjectId } = require('mongodb');
-
 // Controller para operações relacionadas a gráficos
 
 // Retorna dados para um gráfico de pizza, mostrando a porcentagem de cada ativo dentro da carteira
@@ -8,7 +6,7 @@ exports.getWalletPieChart = async (req, res) => {
     const { id } = req.params;
     
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId
     });
     
@@ -21,45 +19,51 @@ exports.getWalletPieChart = async (req, res) => {
     }
     
     // Atualizar preços dos ativos com base na tabela de criptomoedas
-    let updatedAtivos = [...wallet.ativos];
     let saldoAtualTotal = 0;
+    const ativosAtualizados = [];
     
-    for (let i = 0; i < updatedAtivos.length; i++) {
-      const ativo = updatedAtivos[i];
+    for (const ativo of wallet.ativos) {
       const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
       
       if (cryptoData) {
-        updatedAtivos[i].precoAtual = cryptoData.precoAtual;
-        updatedAtivos[i].valorAtual = ativo.quantidade * cryptoData.precoAtual;
-        saldoAtualTotal += updatedAtivos[i].valorAtual;
+        const valorAtual = ativo.quantidade * cryptoData.precoAtual;
+        saldoAtualTotal += valorAtual;
+        ativosAtualizados.push({
+          nome: ativo.nome,
+          valor: valorAtual,
+          quantidade: ativo.quantidade
+        });
       } else {
         saldoAtualTotal += ativo.valorTotal;
+        ativosAtualizados.push({
+          nome: ativo.nome,
+          valor: ativo.valorTotal,
+          quantidade: ativo.quantidade
+        });
       }
     }
-    
-    // Recalcular percentuais com base no saldo atual
-    if (saldoAtualTotal > 0) {
-      updatedAtivos = updatedAtivos.map(ativo => ({
-        ...ativo,
-        percentual: ((ativo.valorAtual || ativo.valorTotal) / saldoAtualTotal) * 100
-      }));
-    }
+
+    // Ordenar por valor (maior para menor)
+    ativosAtualizados.sort((a, b) => b.valor - a.valor);
     
     // Definir cores para os ativos
     const colors = [
-      '#00e4ca', '#9b87f5', '#ff9332', '#1199fa', '#2ebd85', '#ff4c4c',
-      '#00b8d9', '#6554c0', '#ff8800', '#36b37e', '#ff5630', '#6554c0'
+      '#f7931a', // Bitcoin
+      '#627eea', // Ethereum
+      '#0033ad', // Cardano
+      '#00ffbd', // Solana
+      '#e6007a', // Polkadot
+      '#00b8d9', // Outros
+      '#6554c0',
+      '#ff8800',
+      '#36b37e',
+      '#ff5630'
     ];
     
-    // Formatar dados para o gráfico de pizza
-    const labels = updatedAtivos.map(a => a.nome);
-    const data = updatedAtivos.map(a => a.percentual);
-    const backgroundColor = updatedAtivos.map((_, index) => colors[index % colors.length]);
-    
     res.json({
-      labels,
-      data,
-      backgroundColor
+      labels: ativosAtualizados.map(a => a.nome),
+      data: ativosAtualizados.map(a => a.valor),
+      backgroundColor: ativosAtualizados.map((_, index) => colors[index % colors.length])
     });
   } catch (error) {
     console.error('Erro ao obter dados para gráfico de pizza:', error);
@@ -70,55 +74,87 @@ exports.getWalletPieChart = async (req, res) => {
 // Retorna dados para um gráfico de pizza, mostrando a distribuição percentual dos ativos no total do usuário
 exports.getGeneralPieChart = async (req, res) => {
   try {
+    // Buscar todas as carteiras do usuário
     const wallets = await req.db.collection('carteiras').find({ userId: req.userId }).toArray();
     
     if (!wallets || wallets.length === 0) {
-      return res.json({ labels: [], data: [], backgroundColor: [] });
+      return res.json({ 
+        labels: [], 
+        data: [], 
+        backgroundColor: []
+      });
     }
-    
-    // Atualizar saldos de cada carteira com base nos preços atuais
+
+    // Objeto para agrupar ativos por nome
+    const ativosAgregados = {};
+
+    // Processar cada carteira
     for (let wallet of wallets) {
       if (wallet.ativos && wallet.ativos.length > 0) {
-        let saldoAtual = 0;
-        
         for (const ativo of wallet.ativos) {
           const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
           
           if (cryptoData) {
-            saldoAtual += ativo.quantidade * cryptoData.precoAtual;
+            const valorAtual = ativo.quantidade * cryptoData.precoAtual;
+            if (ativosAgregados[ativo.nome]) {
+              ativosAgregados[ativo.nome].valor += valorAtual;
+              ativosAgregados[ativo.nome].quantidade += ativo.quantidade;
+            } else {
+              ativosAgregados[ativo.nome] = {
+                nome: ativo.nome,
+                valor: valorAtual,
+                quantidade: ativo.quantidade
+              };
+            }
           } else {
-            saldoAtual += ativo.valorTotal;
+            if (ativosAgregados[ativo.nome]) {
+              ativosAgregados[ativo.nome].valor += ativo.valorTotal;
+              ativosAgregados[ativo.nome].quantidade += ativo.quantidade;
+            } else {
+              ativosAgregados[ativo.nome] = {
+                nome: ativo.nome,
+                valor: ativo.valorTotal,
+                quantidade: ativo.quantidade
+              };
+            }
           }
         }
-        
-        wallet.saldoTotal = saldoAtual;
       }
     }
-    
-    // Calcular valor total de todas as carteiras
-    const totalValue = wallets.reduce((sum, wallet) => sum + wallet.saldoTotal, 0);
-    
-    if (totalValue === 0) {
-      return res.json({ labels: [], data: [], backgroundColor: [] });
+
+    // Se não houver ativos, retornar arrays vazios
+    if (Object.keys(ativosAgregados).length === 0) {
+      return res.json({ 
+        labels: [], 
+        data: [], 
+        backgroundColor: []
+      });
     }
-    
-    // Calcular percentual de cada carteira
-    const walletData = wallets.map(wallet => ({
-      name: wallet.nome,
-      value: wallet.saldoTotal,
-      percentage: (wallet.saldoTotal / totalValue) * 100
-    }));
-    
-    // Definir cores para as carteiras
+
+    // Converter o objeto em um array
+    const ativosAtualizados = Object.values(ativosAgregados);
+
+    // Ordenar por valor (maior para menor)
+    ativosAtualizados.sort((a, b) => b.valor - a.valor);
+
+    // Definir cores para os ativos
     const colors = [
-      '#00e4ca', '#9b87f5', '#ff9332', '#1199fa', '#2ebd85', '#ff4c4c',
-      '#00b8d9', '#6554c0', '#ff8800', '#36b37e', '#ff5630', '#6554c0'
+      '#f7931a', // Bitcoin
+      '#627eea', // Ethereum
+      '#0033ad', // Cardano
+      '#00ffbd', // Solana
+      '#e6007a', // Polkadot
+      '#00b8d9', // Outros
+      '#6554c0',
+      '#ff8800',
+      '#36b37e',
+      '#ff5630'
     ];
-    
+
     res.json({
-      labels: walletData.map(w => w.name),
-      data: walletData.map(w => w.percentage),
-      backgroundColor: walletData.map((_, index) => colors[index % colors.length])
+      labels: ativosAtualizados.map(a => a.nome),
+      data: ativosAtualizados.map(a => a.valor),
+      backgroundColor: ativosAtualizados.map((_, index) => colors[index % colors.length])
     });
   } catch (error) {
     console.error('Erro ao obter dados para gráfico de pizza geral:', error);
@@ -132,7 +168,7 @@ exports.getWalletPerformanceChart = async (req, res) => {
     const { id } = req.params;
     
     const wallet = await req.db.collection('carteiras').findOne({ 
-      _id: new ObjectId(id),
+      _id: new req.ObjectId(id),
       userId: req.userId
     });
     
@@ -143,7 +179,7 @@ exports.getWalletPerformanceChart = async (req, res) => {
     // Buscar histórico de operações da carteira
     const history = await req.db.collection('historico')
       .find({ 
-        carteiraId: new ObjectId(id),
+        carteiraId: new req.ObjectId(id),
         userId: req.userId
       })
       .sort({ data: 1 })
@@ -290,5 +326,64 @@ exports.getGeneralPerformanceChart = async (req, res) => {
   } catch (error) {
     console.error('Erro ao obter dados para gráfico de performance geral:', error);
     res.status(500).json({ error: 'Erro ao obter dados para gráfico de performance geral' });
+  }
+};
+
+// Retorna as criptomoedas com as maiores variações nas últimas 24 horas
+exports.getHighestVariations = async (req, res) => {
+  try {
+    // Buscar todas as criptomoedas
+    const allCryptos = await req.db.collection('criptomoedas').find({}).toArray();
+    
+    if (!allCryptos || allCryptos.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma criptomoeda encontrada' });
+    }
+    
+    console.log("Total de criptomoedas encontradas:", allCryptos.length);
+    
+    // Processar e organizar as criptomoedas pela variação
+    const processedCryptos = allCryptos.map(crypto => ({
+      nome: crypto.nome,
+      sigla: crypto.simbolo || '',
+      precoAtual: crypto.precoAtual || 0,
+      variacao24h: crypto.variacao24h || 0
+    }));
+    
+    // Separar as criptomoedas em positivas e negativas
+    const positiveCryptos = processedCryptos.filter(crypto => crypto.variacao24h > 0);
+    const negativeCryptos = processedCryptos.filter(crypto => crypto.variacao24h < 0);
+    
+    console.log("Total de criptomoedas com variação positiva:", positiveCryptos.length);
+    console.log("Total de criptomoedas com variação negativa:", negativeCryptos.length);
+    
+    // Ordenar as criptomoedas positivas (maior para menor)
+    positiveCryptos.sort((a, b) => b.variacao24h - a.variacao24h);
+    
+    // Pegar as 10 com maiores variações positivas
+    const positiveVariations = positiveCryptos.slice(0, 10);
+    
+    // Ordenar as criptomoedas negativas (menor para maior - mais negativas primeiro)
+    negativeCryptos.sort((a, b) => a.variacao24h - b.variacao24h);
+    
+    // Pegar as 10 com maiores variações negativas
+    const negativeVariations = negativeCryptos.slice(0, 10);
+    
+    // Resposta final com as 10 maiores variações positivas e 10 maiores variações negativas
+    const response = {
+      positivas: positiveVariations || [],
+      negativas: negativeVariations || []
+    };
+    
+    console.log("Resposta final:", 
+      { 
+        positivas: response.positivas.length, 
+        negativas: response.negativas.length 
+      }
+    );
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Erro ao obter as maiores variações:', error);
+    res.status(500).json({ error: 'Erro ao obter as maiores variações' });
   }
 };

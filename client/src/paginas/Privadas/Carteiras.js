@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaArrowLeft, FaChartLine, FaHistory, FaExchangeAlt } from 'react-icons/fa';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function Carteiras() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState('add');
-  const [selectedWallet, setSelectedWallet] = useState(null);
   const [formData, setFormData] = useState({
-    nome: '',
-    descricao: ''
+    nome: ''
   });
   
   // Estado para o modal de confirmação de exclusão
@@ -17,6 +17,8 @@ function Carteiras() {
   // Estado para controlar a visualização detalhada
   const [viewMode, setViewMode] = useState('list'); // 'list' ou 'detail'
   const [selectedWalletForDetail, setSelectedWalletForDetail] = useState(null);
+  const [walletDetails, setWalletDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Estados para venda de ativos
   const [showSellModal, setShowSellModal] = useState(false);
@@ -26,68 +28,220 @@ function Carteiras() {
     preco: ''
   });
 
-  // Estados para adicionar ativo
-  const [showAddAssetModal, setShowAddAssetModal] = useState(false);
-  const [addAssetFormData, setAddAssetFormData] = useState({
+  // Estados para adicionar aporte
+  const [showAddAporteModal, setShowAddAporteModal] = useState(false);
+  const [addAporteFormData, setAddAporteFormData] = useState({
     cripto: '',
-    quantidade: '',
-    preco: ''
+    preco: '',
+    quantidade: ''
   });
+  const [saldoDisponivel, setSaldoDisponivel] = useState(0);
 
-  // Dados de exemplo para carteiras
-  const [carteiras, setCarteiras] = useState([
-    {
-      id: 1,
-      nome: 'Carteira Principal',
-      descricao: 'Carteira para investimentos de longo prazo',
-      saldo: 25000,
-      aporte: 20000,
-      lucro: 5000,
-      variacao: 25.0,
-      dataCriacao: '2023-01-15',
-      ultimaAtualizacao: '2023-06-20',
-      transacoes: [
-        { id: 1, tipo: 'compra', cripto: 'Bitcoin', quantidade: 0.1, valor: 5000, data: '2023-02-10' },
-        { id: 2, tipo: 'compra', cripto: 'Ethereum', quantidade: 1.5, valor: 7500, data: '2023-03-15' },
-        { id: 3, tipo: 'venda', cripto: 'Cardano', quantidade: 500, valor: 2500, data: '2023-05-20' }
-      ]
-    },
-    {
-      id: 2,
-      nome: 'Carteira de Trading',
-      descricao: 'Carteira para operações de curto prazo',
-      saldo: 15000,
-      aporte: 18000,
-      lucro: -3000,
-      variacao: -16.7,
-      dataCriacao: '2023-03-10',
-      ultimaAtualizacao: '2023-06-18',
-      transacoes: [
-        { id: 4, tipo: 'compra', cripto: 'Bitcoin', quantidade: 0.05, valor: 2500, data: '2023-04-05' },
-        { id: 5, tipo: 'compra', cripto: 'Solana', quantidade: 25, valor: 5000, data: '2023-04-15' },
-        { id: 6, tipo: 'venda', cripto: 'Polkadot', quantidade: 50, valor: 2000, data: '2023-05-10' }
-      ]
-    },
-    {
-      id: 3,
-      nome: 'Carteira de Poupança',
-      descricao: 'Carteira para reserva de emergência',
-      saldo: 50000,
-      aporte: 45000,
-      lucro: 5000,
-      variacao: 11.1,
-      dataCriacao: '2023-02-20',
-      ultimaAtualizacao: '2023-06-19',
-      transacoes: [
-        { id: 7, tipo: 'compra', cripto: 'Bitcoin', quantidade: 0.3, valor: 15000, data: '2023-03-01' },
-        { id: 8, tipo: 'compra', cripto: 'Ethereum', quantidade: 2.0, valor: 10000, data: '2023-04-10' }
-      ]
+  const [carteiras, setCarteiras] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchCarteiras();
+    if (id) {
+      setViewMode('detail');
+      fetchWalletDetails(id);
     }
-  ]);
+  }, [id]);
+
+  useEffect(() => {
+    if (id && carteiras.length > 0) {
+      const carteira = carteiras.find(c => c._id === id);
+      if (carteira) {
+        setSelectedWalletForDetail(carteira);
+      }
+    }
+  }, [carteiras, id]);
+
+  const fetchCarteiras = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar carteiras');
+      }
+
+      const carteirasData = await response.json();
+      
+      // Para cada carteira, buscar seu saldo
+      const carteirasComSaldo = await Promise.all(
+        carteirasData.map(async (carteira) => {
+          try {
+            const saldoResponse = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${carteira._id}/saldo`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (!saldoResponse.ok) {
+              console.error(`Erro ao buscar saldo da carteira ${carteira._id}`);
+              return {
+                ...carteira,
+                saldo: 0,
+                aporte: 0,
+                lucro: 0,
+                variacao: 0
+              };
+            }
+
+            const saldoData = await saldoResponse.json();
+            return {
+              ...carteira,
+              saldo: saldoData.saldoTotal || 0,
+              aporte: saldoData.aporteTotal || 0,
+              lucro: saldoData.lucro || 0,
+              variacao: saldoData.percentualLucro || 0
+            };
+          } catch (error) {
+            console.error(`Erro ao processar carteira ${carteira._id}:`, error);
+            return {
+              ...carteira,
+              saldo: 0,
+              aporte: 0,
+              lucro: 0,
+              variacao: 0
+            };
+          }
+        })
+      );
+
+      console.log('Carteiras carregadas:', carteirasComSaldo);
+      setCarteiras(carteirasComSaldo);
+    } catch (err) {
+      console.error('Erro ao carregar carteiras:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWalletDetails = async (walletId) => {
+    setLoadingDetails(true);
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Fetching wallet details for ID:', walletId);
+      console.log('Using token:', token);
+
+      // Buscar detalhes da carteira
+      const walletResponse = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${walletId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!walletResponse.ok) {
+        const walletError = await walletResponse.text();
+        console.error('Wallet Error:', walletError);
+        throw new Error(`Erro ao carregar carteira: ${walletError}`);
+      }
+
+      const walletData = await walletResponse.json();
+      console.log('Wallet Data:', walletData);
+
+      // Buscar saldo da carteira
+      const saldoResponse = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${walletId}/saldo`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!saldoResponse.ok) {
+        const saldoError = await saldoResponse.text();
+        console.error('Saldo Error:', saldoError);
+        throw new Error(`Erro ao carregar saldo: ${saldoError}`);
+      }
+
+      const saldoData = await saldoResponse.json();
+      console.log('Saldo Data:', saldoData);
+
+      // Buscar ativos da carteira
+      const ativosResponse = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${walletId}/ativos`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!ativosResponse.ok) {
+        const ativosError = await ativosResponse.text();
+        console.error('Ativos Error:', ativosError);
+        throw new Error(`Erro ao carregar ativos: ${ativosError}`);
+      }
+
+      const ativosData = await ativosResponse.json();
+      console.log('Dados dos ativos recebidos:', ativosData);
+
+      // Verificar se os dados do saldo estão presentes
+      if (!saldoData || typeof saldoData !== 'object') {
+        console.error('Dados do saldo inválidos:', saldoData);
+        throw new Error('Dados do saldo inválidos');
+      }
+
+      // Garantir que os valores numéricos sejam tratados corretamente
+      const saldoTotal = parseFloat(saldoData.saldoTotal) || 0;
+      const aporteTotal = parseFloat(saldoData.aporteTotal) || 0;
+      const lucroTotal = parseFloat(saldoData.lucro) || 0;
+      const variacao = parseFloat(saldoData.percentualLucro) || 0;
+
+      // Processar os ativos para garantir que todos os valores numéricos sejam tratados
+      const processedAtivos = ativosData.map(ativo => {
+        const valorUnitario = parseFloat(ativo.valorUnitario) || 0;
+        const precoAtual = parseFloat(ativo.precoAtual) || 0;
+        const quantidade = parseFloat(ativo.quantidade) || 0;
+        const valorAtual = quantidade * precoAtual;
+        
+        // Calcular a variação percentual usando o preço médio e o preço atual
+        const variacaoAtivo = valorUnitario > 0 
+          ? ((precoAtual - valorUnitario) / valorUnitario) * 100 
+          : 0;
+
+        return {
+          ...ativo,
+          quantidade,
+          valorUnitario,
+          precoAtual,
+          valorAtual,
+          variacao: variacaoAtivo
+        };
+      });
+
+      console.log('Ativos processados:', processedAtivos);
+
+      setWalletDetails({
+        ...walletData,
+        ativos: processedAtivos,
+        saldo: {
+          total: saldoTotal,
+          aporte: aporteTotal,
+          lucro: lucroTotal,
+          variacao: variacao
+        }
+      });
+    } catch (err) {
+      console.error('Error in fetchWalletDetails:', err);
+      setError(err.message);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   // Prevenir scroll do body quando o modal estiver aberto
   useEffect(() => {
-    if (showModal || showDeleteModal || showSellModal || showAddAssetModal) {
+    if (showModal || showDeleteModal || showSellModal || showAddAporteModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
@@ -96,7 +250,7 @@ function Carteiras() {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [showModal, showDeleteModal, showSellModal, showAddAssetModal]);
+  }, [showModal, showDeleteModal, showSellModal, showAddAporteModal]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -106,7 +260,8 @@ function Carteiras() {
   };
 
   const formatPercentage = (value) => {
-    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+    if (value === undefined || value === null) return '0.00%';
+    return `${value > 0 ? '+' : ''}${Number(value).toFixed(2)}%`;
   };
 
   const formatDate = (dateString) => {
@@ -114,30 +269,17 @@ function Carteiras() {
     return new Date(dateString).toLocaleDateString('pt-BR', options);
   };
 
-  const handleOpenModal = (type, wallet = null) => {
-    setModalType(type);
-    if (wallet) {
-      setSelectedWallet(wallet);
+  const handleOpenModal = () => {
       setFormData({
-        nome: wallet.nome,
-        descricao: wallet.descricao
-      });
-    } else {
-      setSelectedWallet(null);
-      setFormData({
-        nome: '',
-        descricao: ''
-      });
-    }
+      nome: ''
+    });
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setSelectedWallet(null);
     setFormData({
-      nome: '',
-      descricao: ''
+      nome: ''
     });
   };
 
@@ -149,37 +291,29 @@ function Carteiras() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (modalType === 'add') {
-      const newWallet = {
-        id: carteiras.length + 1,
-        ...formData,
-        saldo: 0,
-        aporte: 0,
-        lucro: 0,
-        variacao: 0,
-        dataCriacao: new Date().toISOString().split('T')[0],
-        ultimaAtualizacao: new Date().toISOString().split('T')[0],
-        transacoes: []
-      };
-      setCarteiras(prev => [...prev, newWallet]);
-    } else if (modalType === 'edit') {
-      setCarteiras(prev => 
-        prev.map(wallet => 
-          wallet.id === selectedWallet.id 
-            ? { 
-                ...wallet, 
-                nome: formData.nome,
-                descricao: formData.descricao
-              } 
-            : wallet
-        )
-      );
-    }
-    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao salvar carteira');
+      }
+
+      await fetchCarteiras();
     handleCloseModal();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleDeleteClick = (wallet) => {
@@ -187,11 +321,28 @@ function Carteiras() {
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (walletToDelete) {
-      setCarteiras(prev => prev.filter(wallet => wallet.id !== walletToDelete.id));
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${walletToDelete._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao excluir carteira');
+        }
+
+        await fetchCarteiras();
       setShowDeleteModal(false);
       setWalletToDelete(null);
+      } catch (err) {
+        setError(err.message);
+      }
     }
   };
 
@@ -200,21 +351,35 @@ function Carteiras() {
     setWalletToDelete(null);
   };
 
-  const handleWalletClick = (wallet) => {
+  const handleWalletClick = async (wallet) => {
+    console.log('Wallet click - carteira recebida:', wallet);
+    console.log('Wallet ID:', wallet?._id);
+    console.log('Wallet nome:', wallet?.nome);
+    
+    if (!wallet || !wallet._id) {
+      console.error('Wallet or wallet ID is missing:', wallet);
+      setError('Carteira inválida');
+      return;
+    }
+
+    console.log('Selected wallet:', wallet);
     setSelectedWalletForDetail(wallet);
     setViewMode('detail');
+    await fetchWalletDetails(wallet._id);
   };
 
   const handleBackToList = () => {
     setViewMode('list');
     setSelectedWalletForDetail(null);
+    setWalletDetails(null);
+    navigate('/carteiras');
   };
 
   const handleSellAsset = (asset) => {
     setAssetToSell(asset);
     setSellFormData({
-      quantidade: asset.quantidade,
-      preco: asset.valor / asset.quantidade
+      quantidade: '',
+      preco: ''
     });
     setShowSellModal(true);
   };
@@ -227,37 +392,73 @@ function Carteiras() {
     }));
   };
 
-  const handleConfirmSell = () => {
-    if (assetToSell && selectedWalletForDetail) {
-      // Atualizar a carteira com a venda
-      const updatedWallet = {
-        ...selectedWalletForDetail,
-        transacoes: selectedWalletForDetail.transacoes.map(transacao => {
-          if (transacao.id === assetToSell.id) {
-            return {
-              ...transacao,
-              quantidade: transacao.quantidade - parseFloat(sellFormData.quantidade),
-              valor: (transacao.quantidade - parseFloat(sellFormData.quantidade)) * (transacao.valor / transacao.quantidade)
-            };
-          }
-          return transacao;
+  const handleConfirmSell = async () => {
+    if (!assetToSell || !selectedWalletForDetail?._id) {
+      setError('Dados inválidos para venda');
+      return;
+    }
+
+    try {
+      // Validar campos
+      if (!sellFormData.quantidade || !sellFormData.preco) {
+        setError('Por favor, preencha todos os campos');
+        return;
+      }
+
+      const quantidade = parseFloat(sellFormData.quantidade);
+      const preco = parseFloat(sellFormData.preco);
+
+      if (isNaN(quantidade) || isNaN(preco)) {
+        setError('Por favor, insira valores numéricos válidos');
+        return;
+      }
+
+      if (quantidade <= 0 || preco <= 0) {
+        setError('Quantidade e preço devem ser maiores que zero');
+        return;
+      }
+
+      if (quantidade > assetToSell.quantidade) {
+        setError(`Quantidade excede o disponível (${assetToSell.quantidade})`);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${selectedWalletForDetail._id}/venda`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          nome: assetToSell.nome,
+          quantidade: quantidade,
+          valorUnitario: preco
         })
-      };
+      });
 
-      // Atualizar o estado da carteira
-      setCarteiras(prev => 
-        prev.map(wallet => 
-          wallet.id === updatedWallet.id ? updatedWallet : wallet
-        )
-      );
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Erro ao realizar venda:', errorData);
+        throw new Error(`Erro ao realizar venda: ${errorData}`);
+      }
 
-      // Fechar o modal e resetar os estados
-      setShowSellModal(false);
-      setAssetToSell(null);
+      const responseData = await response.json();
+      console.log('Venda Response Data:', responseData);
+
+      // Atualizar os detalhes da carteira após a venda
+      await fetchWalletDetails(selectedWalletForDetail._id);
+
+      // Limpar o formulário e fechar o modal
       setSellFormData({
         quantidade: '',
         preco: ''
       });
+      setShowSellModal(false);
+      setAssetToSell(null);
+    } catch (err) {
+      console.error('Error in handleConfirmSell:', err);
+      setError(err.message);
     }
   };
 
@@ -270,59 +471,120 @@ function Carteiras() {
     });
   };
 
-  const handleAddAsset = () => {
-    setShowAddAssetModal(true);
-    setAddAssetFormData({
-      cripto: '',
-      quantidade: '',
-      preco: ''
-    });
+  const handleAddAporte = async () => {
+    try {
+      // Buscar saldo do usuário
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/usuario/geral`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar saldo do usuário');
+      }
+
+      const data = await response.json();
+      setSaldoDisponivel(data.saldoReais || 0);
+
+      setShowAddAporteModal(true);
+      setAddAporteFormData({
+        cripto: '',
+        preco: '',
+        quantidade: ''
+      });
+    } catch (err) {
+      console.error('Erro ao carregar saldo:', err);
+      setError(err.message);
+    }
   };
 
-  const handleAddAssetFormChange = (e) => {
+  const handleAddAporteFormChange = (e) => {
     const { name, value } = e.target;
-    setAddAssetFormData(prev => ({
+    setAddAporteFormData(prev => ({
       ...prev,
       [name]: value
     }));
   };
 
-  const handleConfirmAddAsset = () => {
-    if (selectedWalletForDetail) {
-      const newAsset = {
-        id: Date.now(), // ID temporário
-        cripto: addAssetFormData.cripto,
-        quantidade: parseFloat(addAssetFormData.quantidade),
-        valor: parseFloat(addAssetFormData.quantidade) * parseFloat(addAssetFormData.preco),
-        variacao: 0 // Variação inicial será 0
-      };
+  const handleConfirmAddAporte = async () => {
+    if (!selectedWalletForDetail?._id) {
+      setError('Carteira inválida');
+      return;
+    }
 
-      const updatedWallet = {
-        ...selectedWalletForDetail,
-        transacoes: [...selectedWalletForDetail.transacoes, newAsset]
-      };
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Validar se todos os campos foram preenchidos
+      if (!addAporteFormData.cripto || !addAporteFormData.preco || !addAporteFormData.quantidade) {
+        setError('Por favor, preencha todos os campos');
+        return;
+      }
 
-      setCarteiras(prev => 
-        prev.map(wallet => 
-          wallet.id === updatedWallet.id ? updatedWallet : wallet
-        )
-      );
+      // Converter e validar os valores numéricos
+      const quantidade = parseFloat(addAporteFormData.quantidade);
+      const valorUnitario = parseFloat(addAporteFormData.preco);
 
-      setShowAddAssetModal(false);
-      setAddAssetFormData({
-        cripto: '',
-        quantidade: '',
-        preco: ''
+      if (isNaN(quantidade) || isNaN(valorUnitario)) {
+        setError('Por favor, insira valores numéricos válidos');
+        return;
+      }
+
+      const valorTotal = quantidade * valorUnitario;
+
+      // Verificar se o usuário tem saldo suficiente
+      if (valorTotal > saldoDisponivel) {
+        setError(`Saldo insuficiente. Saldo disponível: ${formatCurrency(saldoDisponivel)}`);
+        return;
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/carteira/${selectedWalletForDetail._id}/aporte`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          nome: addAporteFormData.cripto,
+          quantidade: quantidade,
+          valorUnitario: valorUnitario
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Erro ao adicionar aporte:', errorData);
+        throw new Error(`Erro ao adicionar aporte: ${errorData}`);
+      }
+
+      const responseData = await response.json();
+      console.log('Aporte Response Data:', responseData);
+
+      // Atualizar os detalhes da carteira após adicionar o aporte
+      await fetchWalletDetails(selectedWalletForDetail._id);
+
+      // Limpar o formulário e fechar o modal
+      setAddAporteFormData({
+        cripto: '',
+        preco: '',
+        quantidade: ''
+      });
+      setShowAddAporteModal(false);
+    } catch (err) {
+      console.error('Error in handleConfirmAddAporte:', err);
+      setError(err.message);
     }
   };
 
-  const handleCancelAddAsset = () => {
-    setShowAddAssetModal(false);
-    setAddAssetFormData({
+  const handleCancelAddAporte = () => {
+    setShowAddAporteModal(false);
+    setAddAporteFormData({
       cripto: '',
-      quantidade: '',
-      preco: ''
+      preco: '',
+      quantidade: ''
     });
   };
 
@@ -334,7 +596,7 @@ function Carteiras() {
           <h2>Carteiras</h2>
           <button 
             className="btn btn-outline-secondary d-flex align-items-center"
-            onClick={() => handleOpenModal('add')}
+            onClick={handleOpenModal}
           >
             <FaPlus className="me-2" /> Nova Carteira
           </button>
@@ -342,21 +604,18 @@ function Carteiras() {
 
         <div className="row g-3">
           {carteiras.map(carteira => (
-            <div key={carteira.id} className="col-md-4">
+            <div key={carteira._id} className="col-md-6 col-xxl-4">
               <div 
                 className="card h-100 shadow-sm cursor-pointer" 
-                onClick={() => handleWalletClick(carteira)}
+                onClick={() => {
+                  console.log('Card clicked - carteira:', carteira);
+                  handleWalletClick(carteira);
+                }}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="card-header d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">{carteira.nome}</h5>
                   <div onClick={e => e.stopPropagation()}>
-                    <button 
-                      className="btn btn-outline-primary btn-sm me-2"
-                      onClick={() => handleOpenModal('edit', carteira)}
-                    >
-                      <FaEdit />
-                    </button>
                     <button 
                       className="btn btn-outline-danger btn-sm"
                       onClick={() => handleDeleteClick(carteira)}
@@ -414,32 +673,42 @@ function Carteiras() {
           <h2 className="mb-0">{selectedWalletForDetail.nome}</h2>
         </div>
 
-        {/* Cards de estatísticas no topo */}
-        <div className="row g-3 mb-3">
-          <div className="col-md-4">
+        {loadingDetails ? (
+          <div className="card shadow-sm">
+              <div className="card-body text-center">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Carregando...</span>
+              </div>
+              <p className="mt-3">Carregando detalhes da carteira...</p>
+            </div>
+          </div>
+        ) : walletDetails ? (
+          <>
+            <div className="row g-3 mb-3">
+              <div className="col-md-4">
             <div className="card h-100">
               <div className="card-body text-center">
                 <h6 className="text-muted">Saldo Total</h6>
-                <h3 className="mb-0">{formatCurrency(selectedWalletForDetail.saldo)}</h3>
+                    <h3 className="mb-0">{formatCurrency(walletDetails?.saldo?.total ?? 0)}</h3>
               </div>
             </div>
           </div>
-          <div className="col-md-4">
-            <div className="card h-100">
-              <div className="card-body text-center">
-                <h6 className="text-muted">Aporte Total</h6>
-                <h3 className="mb-0">{formatCurrency(selectedWalletForDetail.aporte)}</h3>
+              <div className="col-md-4">
+                <div className="card h-100">
+                  <div className="card-body text-center">
+                    <h6 className="text-muted">Aporte Total</h6>
+                    <h3 className="mb-0">{formatCurrency(walletDetails?.saldo?.aporte ?? 0)}</h3>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="col-md-4">
+              <div className="col-md-4">
             <div className="card h-100">
               <div className="card-body text-center">
                 <h6 className="text-muted">Lucro Total</h6>
-                <h3 className={`mb-0 ${selectedWalletForDetail.lucro >= 0 ? 'text-success' : 'text-danger'}`}>
-                  {formatCurrency(selectedWalletForDetail.lucro)}
-                  <span className={`badge ms-2 ${selectedWalletForDetail.variacao >= 0 ? 'bg-success' : 'bg-danger'}`}>
-                    {formatPercentage(selectedWalletForDetail.variacao)}
+                    <h3 className={`mb-0 ${(walletDetails?.saldo?.lucro ?? 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+                      {formatCurrency(walletDetails?.saldo?.lucro ?? 0)}
+                      <span className={`badge ms-2 ${(walletDetails?.saldo?.variacao ?? 0) >= 0 ? 'bg-success' : 'bg-danger'}`}>
+                        {formatPercentage(walletDetails?.saldo?.variacao ?? 0)}
                   </span>
                 </h3>
               </div>
@@ -447,64 +716,112 @@ function Carteiras() {
           </div>
         </div>
 
-        {/* Informações da carteira */}
-        <div className="row g-3">
+            <div className="row g-3">
           <div className="col-12">
             <div className="card">
               <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">Ativos da Carteira</h5>
-                <button 
-                  className="btn btn-outline-secondary btn-sm d-flex align-items-center"
-                  onClick={() => handleAddAsset()}
-                >
-                  <FaPlus className="me-2" /> Adicionar Ativo
+                    <h5 className="mb-0">Ativos da Carteira</h5>
+                  <button 
+                      className="btn btn-outline-secondary btn-sm d-flex align-items-center"
+                      onClick={handleAddAporte}
+                    >
+                      <FaPlus className="me-2" /> Adicionar Aporte
                 </button>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
                   <table className="table table-hover mb-0">
-                    <thead>
-                      <tr>
-                        <th className="py-3 ps-4 w-25">Criptomoeda</th>
-                        <th className="py-3 w-15">Quantidade</th>
-                        <th className="py-3 w-15">Preço Médio</th>
-                        <th className="py-3 w-15">Valor Atual</th>
-                        <th className="py-3 w-15">Variação</th>
-                        <th className="py-3 pe-4 w-15 text-end">Ações</th>
+                        <thead>
+                          <tr>
+                            <th className="py-3 ps-4 w-20">Criptomoeda</th>
+                            <th className="py-3 w-15">Quantidade</th>
+                            <th className="py-3 w-15">Preço Médio</th>
+                            <th className="py-3 w-15">Preço Atual</th>
+                            <th className="py-3 w-15">Valor Total</th>
+                            <th className="py-3 w-15">Variação</th>
+                            <th className="py-3 pe-4 w-15 text-end">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedWalletForDetail.transacoes.map(transacao => (
-                        <tr key={transacao.id}>
-                          <td className="align-middle ps-4">{transacao.cripto}</td>
-                          <td className="align-middle">{transacao.quantidade}</td>
-                          <td className="align-middle">{formatCurrency(transacao.valor / transacao.quantidade)}</td>
-                          <td className="align-middle">{formatCurrency(transacao.valor)}</td>
-                          <td className="align-middle">
-                            <span className={`badge ${transacao.variacao >= 0 ? 'bg-success' : 'bg-danger'}`}>
-                              {formatPercentage(transacao.variacao || 0)}
+                          {walletDetails.ativos?.length > 0 ? (
+                            walletDetails.ativos.map(ativo => (
+                              <tr key={ativo._id}>
+                                <td className="align-middle ps-4">{ativo.nome}</td>
+                                <td className="align-middle">{ativo.quantidade}</td>
+                                <td className="align-middle">{formatCurrency(ativo.valorUnitario)}</td>
+                                <td className="align-middle">{formatCurrency(ativo.precoAtual)}</td>
+                                <td className="align-middle">{formatCurrency(ativo.valorAtual)}</td>
+                                <td className="align-middle">
+                                  <span className={`badge ${ativo.variacao >= 0 ? 'bg-success' : 'bg-danger'}`}>
+                                    {formatPercentage(ativo.variacao)}
                             </span>
                           </td>
-                          <td className="align-middle pe-4 text-end">
-                            <button 
-                              className="btn btn-outline-secondary btn-sm"
-                              onClick={() => handleSellAsset(transacao)}
-                            >
-                              Vender
-                            </button>
-                          </td>
+                                <td className="align-middle pe-4 text-end">
+                                  <button 
+                                    className="btn btn-outline-secondary btn-sm"
+                                    onClick={() => handleSellAsset(ativo)}
+                                  >
+                                    Vender
+                                  </button>
+                                </td>
                         </tr>
-                      ))}
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="6" className="text-center py-4">
+                                Nenhum ativo encontrado nesta carteira
+                              </td>
+                            </tr>
+                          )}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
           </div>
+              </div>
+          </>
+        ) : (
+          <div className="alert alert-warning" role="alert">
+            Não foi possível carregar os detalhes da carteira
+                  </div>
+        )}
+                </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="row justify-content-center">
+          <div className="col-md-10">
+            <div className="card shadow-sm">
+              <div className="card-body text-center">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Carregando...</span>
+              </div>
+                <p className="mt-3">Carregando carteiras...</p>
+            </div>
+              </div>
+                </div>
+              </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="row justify-content-center">
+          <div className="col-md-10">
+            <div className="alert alert-danger" role="alert">
+              {error}
+            </div>
+          </div>
         </div>
       </div>
     );
-  };
+  }
 
   return (
     <>
@@ -551,9 +868,7 @@ function Carteiras() {
           >
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">
-                  {modalType === 'add' ? 'Nova Carteira' : 'Editar Carteira'}
-                </h5>
+                <h5 className="modal-title">Nova Carteira</h5>
                 <button 
                   type="button" 
                   className="btn-close" 
@@ -574,32 +889,15 @@ function Carteiras() {
                       required
                     />
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Descrição</label>
-                    <textarea
-                      className="form-control"
-                      rows={3}
-                      name="descricao"
-                      value={formData.descricao}
-                      onChange={handleInputChange}
-                    ></textarea>
-                  </div>
                 </form>
               </div>
               <div className="modal-footer">
                 <button 
                   type="button" 
-                  className="btn btn-secondary" 
-                  onClick={handleCloseModal}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="button" 
                   className="btn btn-primary"
                   onClick={handleSubmit}
                 >
-                  {modalType === 'add' ? 'Adicionar' : 'Salvar'}
+                  Adicionar
                 </button>
               </div>
             </div>
@@ -678,7 +976,7 @@ function Carteiras() {
               </div>
             </div>
           </div>
-        </div>
+    </div>
       )}
 
       {/* Modal de venda de ativo */}
@@ -722,7 +1020,7 @@ function Carteiras() {
           >
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Vender {assetToSell?.cripto}</h5>
+                <h5 className="modal-title">Vender {assetToSell?.nome}</h5>
                 <button 
                   type="button" 
                   className="btn-close" 
@@ -735,6 +1033,15 @@ function Carteiras() {
                   <div className="mb-3">
                     <label className="form-label">Quantidade Disponível</label>
                     <input
+                      type="text"
+                      className="form-control"
+                      value={assetToSell?.quantidade}
+                      readOnly
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Quantidade a Vender</label>
+                    <input
                       type="number"
                       className="form-control"
                       name="quantidade"
@@ -743,7 +1050,13 @@ function Carteiras() {
                       min="0"
                       max={assetToSell?.quantidade}
                       step="0.00000001"
+                      required
                     />
+                    {parseFloat(sellFormData.quantidade) > parseFloat(assetToSell?.quantidade) && (
+                      <div className="invalid-feedback d-block">
+                        Quantidade excede o disponível
+                      </div>
+                    )}
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Preço de Venda</label>
@@ -755,14 +1068,19 @@ function Carteiras() {
                       onChange={handleSellFormChange}
                       min="0"
                       step="0.01"
+                      required
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Valor Total</label>
+                    <label className="form-label">Valor Total da Venda</label>
                     <input
                       type="text"
                       className="form-control"
-                      value={formatCurrency(sellFormData.quantidade * sellFormData.preco)}
+                      value={formatCurrency(
+                        isNaN(sellFormData.quantidade * sellFormData.preco)
+                          ? 0
+                          : sellFormData.quantidade * sellFormData.preco
+                      )}
                       readOnly
                     />
                   </div>
@@ -771,15 +1089,16 @@ function Carteiras() {
               <div className="modal-footer">
                 <button 
                   type="button" 
-                  className="btn btn-secondary" 
+                  className="btn btn-outline-secondary" 
                   onClick={handleCancelSell}
                 >
                   Cancelar
                 </button>
                 <button 
                   type="button" 
-                  className="btn btn-danger"
+                  className="btn btn-outline-secondary"
                   onClick={handleConfirmSell}
+                  disabled={parseFloat(sellFormData.quantidade) > parseFloat(assetToSell?.quantidade)}
                 >
                   Confirmar Venda
                 </button>
@@ -789,8 +1108,8 @@ function Carteiras() {
         </div>
       )}
 
-      {/* Modal de adicionar ativo */}
-      {showAddAssetModal && (
+      {/* Modal de adicionar aporte */}
+      {showAddAporteModal && (
         <div 
           className="modal-backdrop fade show" 
           style={{
@@ -802,11 +1121,11 @@ function Carteiras() {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
             zIndex: 1040
           }}
-          onClick={handleCancelAddAsset}
+          onClick={handleCancelAddAporte}
         ></div>
       )}
       
-      {showAddAssetModal && (
+      {showAddAporteModal && (
         <div 
           className="modal fade show" 
           style={{
@@ -830,37 +1149,33 @@ function Carteiras() {
           >
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Adicionar Ativo</h5>
+                <h5 className="modal-title">Adicionar Aporte</h5>
                 <button 
                   type="button" 
                   className="btn-close" 
-                  onClick={handleCancelAddAsset}
+                  onClick={handleCancelAddAporte}
                   aria-label="Close"
                 ></button>
               </div>
               <div className="modal-body">
                 <form>
                   <div className="mb-3">
+                    <label className="form-label">Saldo Disponível</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formatCurrency(saldoDisponivel)}
+                      readOnly
+                    />
+                  </div>
+                  <div className="mb-3">
                     <label className="form-label">Criptomoeda</label>
                     <input
                       type="text"
                       className="form-control"
                       name="cripto"
-                      value={addAssetFormData.cripto}
-                      onChange={handleAddAssetFormChange}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Quantidade</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      name="quantidade"
-                      value={addAssetFormData.quantidade}
-                      onChange={handleAddAssetFormChange}
-                      min="0"
-                      step="0.00000001"
+                      value={addAporteFormData.cripto}
+                      onChange={handleAddAporteFormChange}
                       required
                     />
                   </div>
@@ -870,21 +1185,41 @@ function Carteiras() {
                       type="number"
                       className="form-control"
                       name="preco"
-                      value={addAssetFormData.preco}
-                      onChange={handleAddAssetFormChange}
+                      value={addAporteFormData.preco}
+                      onChange={handleAddAporteFormChange}
                       min="0"
                       step="0.01"
                       required
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Valor Total</label>
+                    <label className="form-label">Quantidade</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      name="quantidade"
+                      value={addAporteFormData.quantidade}
+                      onChange={handleAddAporteFormChange}
+                      min="0"
+                      step="0.00000001"
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Valor Total do Aporte</label>
                     <input
                       type="text"
-                      className="form-control"
-                      value={formatCurrency(addAssetFormData.quantidade * addAssetFormData.preco)}
+                      className={`form-control ${(addAporteFormData.quantidade || 0) * (addAporteFormData.preco || 0) > saldoDisponivel ? 'is-invalid' : ''}`}
+                      value={formatCurrency(
+                        (addAporteFormData.quantidade || 0) * (addAporteFormData.preco || 0)
+                      )}
                       readOnly
                     />
+                    {(addAporteFormData.quantidade || 0) * (addAporteFormData.preco || 0) > saldoDisponivel && (
+                      <div className="invalid-feedback">
+                        Saldo insuficiente para este aporte
+                      </div>
+                    )}
                   </div>
                 </form>
               </div>
@@ -892,21 +1227,22 @@ function Carteiras() {
                 <button 
                   type="button" 
                   className="btn btn-outline-secondary" 
-                  onClick={handleCancelAddAsset}
+                  onClick={handleCancelAddAporte}
                 >
                   Cancelar
                 </button>
                 <button 
                   type="button" 
                   className="btn btn-outline-secondary"
-                  onClick={handleConfirmAddAsset}
+                  onClick={handleConfirmAddAporte}
+                  disabled={(addAporteFormData.quantidade || 0) * (addAporteFormData.preco || 0) > saldoDisponivel}
                 >
                   Adicionar
                 </button>
               </div>
             </div>
           </div>
-        </div>
+    </div>
       )}
     </>
   );

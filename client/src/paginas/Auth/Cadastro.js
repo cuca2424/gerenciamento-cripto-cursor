@@ -4,6 +4,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/bootstrap.css"; // Estilo do input de telefone
 import "./custom.css"
+import { useNavigate } from "react-router-dom";
 
 function Cadastro() {
   const [nome, setNome] = useState("");
@@ -17,6 +18,7 @@ function Cadastro() {
   const [gerandoCheckout, setGerandoCheckout] = useState(false);
 
   const phoneInputRef = useRef(null);  // Cria a referência para o input
+  const navigate = useNavigate();
 
   useEffect(() => {
       console.log("mudou o telefone...");
@@ -31,8 +33,6 @@ function Cadastro() {
   }, [telefone]);
 
   const handleRegistro = async () => {
-    const stripePromise = loadStripe(process.env.REACT_APP_PUBLIC_KEY);
-
     if (!nome || !email || !senha || !confirmarSenha || telefone.length < 5) {
       setMensagemErro("Preencha todos os campos para continuar!");
       return;
@@ -51,7 +51,7 @@ function Cadastro() {
     try {
       setGerandoCheckout(true);
 
-      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/criar-sessao-checkout`, {
+      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,24 +60,23 @@ function Cadastro() {
           nome,
           email,
           senha,
-          telefone,
         }),
       });
 
-      if (resposta.ok) {
-        const { sessionId } = await resposta.json();
-        const stripe = await stripePromise;
-        const { error } = await stripe.redirectToCheckout({ sessionId });
+      const data = await resposta.json();
 
-        if (error) {
-          setMensagemErro("Erro ao redirecionar para o checkout.");
-        }
+      if (resposta.ok) {
+        // Salvar token e dados do usuário
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        
+        // Redirecionar para dashboard
+        navigate("/dashboard");
       } else {
-        setMensagemErro(await resposta.text());
-        return;
+        setMensagemErro(data.error || "Erro ao criar conta");
       }
     } catch (err) {
-      setMensagemErro("Houve um erro ao gerar o checkout.");
+      setMensagemErro("Houve um erro ao tentar criar sua conta. Tente novamente mais tarde.");
     } finally {
       setGerandoCheckout(false);
     }

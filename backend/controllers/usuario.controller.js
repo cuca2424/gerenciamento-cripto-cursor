@@ -1,4 +1,3 @@
-const { ObjectId } = require('mongodb');
 
 // Controller para as operações relacionadas ao usuário
 
@@ -12,14 +11,10 @@ exports.deposit = async (req, res) => {
     }
     
     // Atualizar saldo do usuário
-    const result = await req.db.collection('usuarios').updateOne(
-      { _id: new ObjectId(req.userId) },
+    await req.db.collection('usuarios').updateOne(
+      { _id: new req.ObjectId(req.userId) },
       { $inc: { saldoReais: valor } }
     );
-    
-    if (result.modifiedCount === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
     
     // Registrar no histórico
     await req.db.collection('historico').insertOne({
@@ -32,7 +27,7 @@ exports.deposit = async (req, res) => {
     
     // Retornar usuário atualizado
     const updatedUser = await req.db.collection('usuarios').findOne(
-      { _id: new ObjectId(req.userId) }
+      { _id: new req.ObjectId(req.userId) }
     );
     
     res.json({
@@ -55,21 +50,17 @@ exports.withdraw = async (req, res) => {
     }
     
     // Verificar saldo disponível
-    const user = await req.db.collection('usuarios').findOne({ _id: new ObjectId(req.userId) });
+    const user = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     
     if (valor > user.saldoReais) {
       return res.status(400).json({ error: 'Saldo insuficiente para saque' });
     }
     
     // Atualizar saldo do usuário
-    const result = await req.db.collection('usuarios').updateOne(
-      { _id: new ObjectId(req.userId) },
+    await req.db.collection('usuarios').updateOne(
+      { _id: new req.ObjectId(req.userId) },
       { $inc: { saldoReais: -valor } }
     );
-    
-    if (result.modifiedCount === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
     
     // Registrar no histórico
     await req.db.collection('historico').insertOne({
@@ -81,7 +72,7 @@ exports.withdraw = async (req, res) => {
     });
     
     // Retornar usuário atualizado
-    const updatedUser = await req.db.collection('usuarios').findOne({ _id: new ObjectId(req.userId) });
+    const updatedUser = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     
     res.json({
       message: `Saque de R$ ${valor.toFixed(2)} realizado com sucesso`,
@@ -97,11 +88,7 @@ exports.withdraw = async (req, res) => {
 exports.getOverview = async (req, res) => {
   try {
     // Buscar dados do usuário
-    const user = await req.db.collection('usuarios').findOne({ _id: new ObjectId(req.userId) });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
+    const user = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     
     // Buscar todas as carteiras do usuário
     const wallets = await req.db.collection('carteiras').find({ userId: req.userId }).toArray();
@@ -128,15 +115,7 @@ exports.getOverview = async (req, res) => {
 // Obter dados do usuário
 exports.getUser = async (req, res) => {
   try {
-    const user = await req.db.collection('usuarios').findOne(
-      { _id: new ObjectId(req.userId) },
-      { projection: { senha: 0 } }
-    );
-    
-    if (!user) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-    
+    const user = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     res.json(user);
   } catch (error) {
     console.error('Erro ao obter dados do usuário:', error);

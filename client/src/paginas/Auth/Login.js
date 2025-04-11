@@ -10,42 +10,44 @@ function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-
     if (!email || !senha) {
       setMensagemErro("Preencha todos os campos para continuar!");
       return;
     }
 
     try {
-      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/login`, {
+      const resposta = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: email,
-          password: senha,
+          senha: senha,
         }),
       });
 
+      const data = await resposta.json();
+
       if (resposta.ok) {
-        const data = await resposta.json();
+        // Salvar token e dados do usuário
         localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        
+        // Limpar campos
         setEmail("");
         setSenha("");
         setLembrarDeMim(false);
-        navigate("/");
-        window.location.reload();
-
+        
+        // Redirecionar para dashboard
+        navigate("/dashboard");
       } else {
-        const errorMessage = await resposta.text();
-        setMensagemErro(errorMessage);
+        setMensagemErro(data.error || "Erro ao fazer login");
       }
-
     } catch (err) {
-      setMensagemErro("Houve um erro interno.");
+      setMensagemErro("Houve um erro ao tentar fazer login. Tente novamente mais tarde.");
     }
-  }
+  };
 
     return (
         <div className="login">
