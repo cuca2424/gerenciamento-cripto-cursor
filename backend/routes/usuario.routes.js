@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const usuarioController = require('../controllers/usuario.controller');
@@ -14,5 +13,8 @@ router.get('/geral', usuarioController.getOverview);
 
 // Obter dados do usuário
 router.get('/', usuarioController.getUser);
+
+// Atualizar telefone do usuário
+router.put('/telefone', usuarioController.updatePhone);
 
 module.exports = router;

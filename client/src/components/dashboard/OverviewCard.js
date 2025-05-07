@@ -1,20 +1,54 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import PieChart from './PieChart';
+import { useCurrency } from '../../contexts/CurrencyContext';
 
 const { getColor } = window.phoenix.utils;
 
 const OverviewCard = ({ height }) => {
+  const { currency } = useCurrency();
   const lineChartRef = useRef(null);
   const lineChartInstance = useRef(null);
   const [selectedWallet, setSelectedWallet] = useState('Todas as Carteiras');
   const [wallets, setWallets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pieChartData, setPieChartData] = useState({
-    labels: [],
-    data: [],
-    backgroundColor: []
+    brl: {
+      labels: [],
+      data: [],
+      backgroundColor: []
+    },
+    usd: {
+      labels: [],
+      data: [],
+      backgroundColor: []
+    }
   });
+  const [lineChartData, setLineChartData] = useState({
+    labels: [],
+    datasets: {
+      brl: [
+        { data: [] }, // Custo BRL
+        { data: [] }  // Valor BRL
+      ],
+      usd: [
+        { data: [] }, // Custo USD
+        { data: [] }  // Valor USD
+      ]
+    }
+  });
+
+  const getLastSixMonths = () => {
+    const months = [];
+    const currentDate = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const month = date.toLocaleString('pt-BR', { month: 'short' });
+      const year = date.getFullYear().toString().slice(-2);
+      months.push(`${month}/${year}`);
+    }
+    return months;
+  };
 
   const fetchWalletPieChartData = async (walletId) => {
     try {
@@ -33,9 +67,16 @@ const OverviewCard = ({ height }) => {
       const data = await response.json();
       console.log('Wallet pie chart data:', data);
       setPieChartData({
-        labels: data.labels || [],
-        data: data.data || [],
-        backgroundColor: data.backgroundColor || []
+        brl: {
+          labels: data.brl?.labels || [],
+          data: data.brl?.data || [],
+          backgroundColor: data.brl?.backgroundColor || []
+        },
+        usd: {
+          labels: data.usd?.labels || [],
+          data: data.usd?.data || [],
+          backgroundColor: data.usd?.backgroundColor || []
+        }
       });
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico da carteira:', error);
@@ -60,18 +101,186 @@ const OverviewCard = ({ height }) => {
       console.log('Dados recebidos do endpoint /graficos/pizza/geral:', data);
       
       setPieChartData({
-        labels: data.labels || [],
-        data: data.data || [],
-        backgroundColor: data.backgroundColor || []
+        brl: {
+          labels: data.brl?.labels || [],
+          data: data.brl?.data || [],
+          backgroundColor: data.brl?.backgroundColor || []
+        },
+        usd: {
+          labels: data.usd?.labels || [],
+          data: data.usd?.data || [],
+          backgroundColor: data.usd?.backgroundColor || []
+        }
       });
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error);
       // Em caso de erro, definir valores vazios
       setPieChartData({
-        labels: [],
-        data: [],
-        backgroundColor: []
+        brl: { labels: [], data: [], backgroundColor: [] },
+        usd: { labels: [], data: [], backgroundColor: [] }
       });
+    }
+  };
+
+  const validateChartData = (data) => {
+    console.log('Validando dados:', {
+      hasData: !!data,
+      hasLabels: !!data?.labels,
+      hasDatasets: !!data?.datasets,
+      hasBRL: !!data?.datasets?.brl,
+      hasUSD: !!data?.datasets?.usd,
+      labelsLength: data?.labels?.length
+    });
+
+    if (!data || !data.labels || !data.datasets) return false;
+    if (data.labels.length !== 6) return false;
+    
+    const currentCurrency = currency.toLowerCase();
+    const datasets = data.datasets[currentCurrency];
+    
+    console.log('Datasets para moeda atual:', {
+      currency: currentCurrency,
+      datasets: datasets,
+      isArray: Array.isArray(datasets),
+      length: datasets?.length,
+      dataLengths: datasets?.map(d => d.data?.length)
+    });
+    
+    if (!datasets || !Array.isArray(datasets) || datasets.length !== 2) {
+      console.log('Datasets inválidos para a moeda:', currentCurrency);
+      return false;
+    }
+    if (!datasets[0].data || !datasets[1].data) {
+      console.log('Dados ausentes nos datasets');
+      return false;
+    }
+    if (datasets[0].data.length !== 6 || datasets[1].data.length !== 6) {
+      console.log('Comprimento dos dados incorreto');
+      return false;
+    }
+    return true;
+  };
+
+  const transformChartData = (data) => {
+    console.log('Transformando dados:', {
+      originalData: data,
+      labels: data.labels,
+      brlDatasets: data.datasets?.brl,
+      usdDatasets: data.datasets?.usd
+    });
+
+    // Garantir que os dados estão no formato correto
+    const transformed = {
+      labels: data.labels.map(label => {
+        const [month, year] = label.split('/');
+        return `${month}/${year}`;
+      }),
+      datasets: {
+        brl: data.datasets.brl.map(dataset => ({
+          ...dataset,
+          data: dataset.data.map(value => Number(value) || 0)
+        })),
+        usd: data.datasets.usd.map(dataset => ({
+          ...dataset,
+          data: dataset.data.map(value => Number(value) || 0)
+        }))
+      }
+    };
+
+    console.log('Dados transformados:', transformed);
+    return transformed;
+  };
+
+  const calculateYAxisScale = (data) => {
+    const currentCurrency = currency.toLowerCase();
+    const datasets = data.datasets[currentCurrency] || [];
+    
+    // Extrair todos os valores dos datasets atuais
+    const allValues = datasets.reduce((acc, dataset) => {
+      if (dataset && dataset.data) {
+        return [...acc, ...dataset.data];
+      }
+      return acc;
+    }, []);
+    
+    const maxValue = Math.max(...allValues, 0);
+    const interval = Math.ceil(maxValue / 5 / 1000) * 1000;
+    
+    console.log('Calculando escala do eixo Y:', {
+      currency: currentCurrency,
+      allValues,
+      maxValue,
+      interval
+    });
+    
+    return {
+      max: Math.ceil(maxValue / interval) * interval || 10000,
+      interval: interval || 2000
+    };
+  };
+
+  const fetchPerformanceData = async (walletId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const endpoint = walletId 
+        ? `${process.env.REACT_APP_ENDPOINT_API}/graficos/aporte-saldo/carteira/${walletId}`
+        : `${process.env.REACT_APP_ENDPOINT_API}/graficos/aporte-saldo/geral`;
+      
+      console.log('Buscando dados de:', endpoint);
+
+      const response = await fetch(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar dados de performance');
+      }
+
+      const data = await response.json();
+      console.log('Dados brutos recebidos:', data);
+      
+      if (!validateChartData(data)) {
+        console.log('Dados inválidos, usando valores padrão');
+        const defaultData = {
+          labels: getLastSixMonths(),
+          datasets: {
+            brl: [
+              { data: Array(6).fill(0) },
+              { data: Array(6).fill(0) }
+            ],
+            usd: [
+              { data: Array(6).fill(0) },
+              { data: Array(6).fill(0) }
+            ]
+          }
+        };
+        console.log('Dados padrão:', defaultData);
+        setLineChartData(defaultData);
+      } else {
+        const transformedData = transformChartData(data);
+        console.log('Dados válidos transformados:', transformedData);
+        setLineChartData(transformedData);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados de performance:', error);
+      const errorData = {
+        labels: getLastSixMonths(),
+        datasets: {
+          brl: [
+            { data: Array(6).fill(0) },
+            { data: Array(6).fill(0) }
+          ],
+          usd: [
+            { data: Array(6).fill(0) },
+            { data: Array(6).fill(0) }
+          ]
+        }
+      };
+      console.log('Dados de erro:', errorData);
+      setLineChartData(errorData);
     }
   };
 
@@ -107,146 +316,24 @@ const OverviewCard = ({ height }) => {
   useEffect(() => {
     if (selectedWallet === 'Todas as Carteiras') {
       fetchPieChartData();
+      fetchPerformanceData();
     } else {
       // Encontrar o ID da carteira selecionada
       const selectedWalletObj = wallets.find(wallet => wallet.nome === selectedWallet);
       if (selectedWalletObj) {
         fetchWalletPieChartData(selectedWalletObj._id);
+        fetchPerformanceData(selectedWalletObj._id);
       }
     }
   }, [selectedWallet, wallets]);
 
-  const initCharts = () => {
-    if (lineChartRef.current) {
-      // Dispose existing instances if they exist
-      if (lineChartInstance.current) {
-        lineChartInstance.current.dispose();
-      }
-
-      // Initialize new instances
-      lineChartInstance.current = echarts.init(lineChartRef.current);
-      
-      // Configuração do gráfico de linhas
-      const lineChartOption = {
-        tooltip: {
-          trigger: 'axis',
-          padding: [7, 10],
-          backgroundColor: '#fff',
-          borderColor: '#e9ecef',
-          textStyle: { color: '#5e6e82' },
-          borderWidth: 1,
-          formatter: (params) => {
-            const month = params[0].name;
-            const saldo = params[0].value;
-            const aporte = params[1].value;
-            
-            return `
-            <div>
-              <h6 class="fs-9 text-body-tertiary mb-0">
-                <span class="fas fa-circle me-1" style='color:${params[0].borderColor}'></span>
-                Saldo: ${saldo}
-              </h6>
-              <h6 class="fs-9 text-body-tertiary mb-0">
-                <span class="fas fa-circle me-1" style='color:${params[1].borderColor}'></span>
-                Aporte: ${aporte}
-              </h6>
-            </div>
-            `;
-          }
-        },
-        xAxis: {
-          type: 'category',
-          data: ['Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
-          boundaryGap: false,
-          axisLine: {
-            lineStyle: {
-              color: '#e9ecef'
-            }
-          },
-          axisTick: { show: false },
-          axisLabel: {
-            color: '#5e6e82',
-            formatter: value => value.substring(0, 3),
-            margin: 15
-          },
-          splitLine: { show: false }
-        },
-        yAxis: {
-          type: 'value',
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: getColor("tertiary-bg")
-            }
-          },
-          boundaryGap: false,
-          axisLabel: {
-            show: true,
-            color: '#5e6e82',
-            margin: 15
-          },
-          axisTick: { show: false },
-          axisLine: { show: false }
-        },
-        series: [
-          {
-            name: 'Saldo',
-            type: 'line',
-            data: [900, 960, 1250, 1700, 1600, 1800],
-            itemStyle: {
-              color: '#fff',
-              borderColor: window.phoenix.utils.getColor('primary'),
-              borderWidth: 2
-            },
-            lineStyle: {
-              color: window.phoenix.utils.getColor('primary')
-            },
-            showSymbol: false,
-            symbol: 'circle',
-            symbolSize: 10,
-            smooth: false,
-            hoverAnimation: true
-          },
-          {
-            name: 'Aporte',
-            type: 'line',
-            data: [750, 800, 950, 1050, 1350, 1250],
-            itemStyle: {
-              color: '#fff',
-              borderColor: getColor('secondary'),
-              borderWidth: 2
-            },
-            lineStyle: {
-              color: getColor('secondary-bg')
-            },
-            showSymbol: false,
-            symbol: 'circle',
-            symbolSize: 10,
-            smooth: false,
-            hoverAnimation: true
-          }
-        ],
-        grid: { 
-          right: '5%', 
-          left: '5%', 
-          bottom: '5%', 
-          top: '5%',
-          containLabel: true
-        }
-      };
-
-      lineChartInstance.current.setOption(lineChartOption);
-
-      // Force resize after initialization
-      setTimeout(() => {
-        lineChartInstance.current?.resize();
-      }, 0);
-    }
-  };
-
+  // Atualizar o gráfico quando a moeda mudar
   useEffect(() => {
     initCharts();
+  }, [currency, lineChartData]);
 
+  // Remover o useEffect anterior que só dependia do lineChartData
+  useEffect(() => {
     const handleResize = () => {
       lineChartInstance.current?.resize();
     };
@@ -260,6 +347,178 @@ const OverviewCard = ({ height }) => {
       }
     };
   }, []);
+
+  const initCharts = () => {
+    if (lineChartRef.current) {
+      if (lineChartInstance.current) {
+        lineChartInstance.current.dispose();
+      }
+
+      lineChartInstance.current = echarts.init(lineChartRef.current);
+      
+      const currentCurrency = currency.toLowerCase();
+      const datasets = lineChartData.datasets[currentCurrency] || [];
+      
+      console.log('Inicializando gráfico:', {
+        currency: currentCurrency,
+        availableCurrencies: Object.keys(lineChartData.datasets || {}),
+        datasetsForCurrency: datasets,
+        labels: lineChartData.labels
+      });
+      
+      const yAxisScale = calculateYAxisScale(lineChartData);
+      
+      const lineChartOption = {
+        tooltip: {
+          trigger: 'axis',
+          padding: [7, 10],
+          backgroundColor: '#fff',
+          borderColor: '#e9ecef',
+          textStyle: { color: '#5e6e82' },
+          borderWidth: 1,
+          formatter: (params) => {
+            if (!params || params.length === 0) return '';
+            
+            const month = params[0].name;
+            const valor = params[1]?.value || 0; // Invertido para mostrar Valor primeiro
+            const custo = params[0]?.value || 0;
+            
+            return `
+            <div>
+              <h6 class="fs-9 text-body-tertiary mb-0">
+                <span class="fas fa-circle me-1" style='color:${params[1]?.borderColor}'></span>
+                Valor: ${new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', { 
+                  style: 'currency', 
+                  currency: currency 
+                }).format(valor)}
+              </h6>
+              <h6 class="fs-9 text-body-tertiary mb-0">
+                <span class="fas fa-circle me-1" style='color:${params[0]?.borderColor}'></span>
+                Custo: ${new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', { 
+                  style: 'currency', 
+                  currency: currency 
+                }).format(custo)}
+              </h6>
+            </div>
+            `;
+          }
+        },
+        grid: { 
+          right: '5%', 
+          left: '5%', 
+          bottom: '5%', 
+          top: '5%',
+          containLabel: true,
+          width: 'auto',
+          height: 'auto'
+        },
+        xAxis: {
+          type: 'category',
+          data: lineChartData.labels || [],
+          boundaryGap: false,
+          axisLine: {
+            lineStyle: {
+              color: '#e9ecef'
+            }
+          },
+          axisTick: { show: false },
+          axisLabel: {
+            color: '#5e6e82',
+            margin: 15,
+            interval: 0
+          },
+          splitLine: { show: false }
+        },
+        yAxis: {
+          type: 'value',
+          splitLine: {
+            show: true,
+            lineStyle: {
+              color: getColor("tertiary-bg")
+            }
+          },
+          boundaryGap: false,
+          min: 0,
+          max: yAxisScale.max,
+          interval: yAxisScale.interval,
+          axisLabel: {
+            show: true,
+            color: '#5e6e82',
+            margin: 15,
+            formatter: (value) => {
+              if (value >= 1000000) {
+                return `${currency} ${(value / 1000000).toFixed(1)}M`;
+              } else if (value >= 1000) {
+                return `${currency} ${(value / 1000).toFixed(1)}K`;
+              }
+              return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', { 
+                style: 'currency', 
+                currency: currency,
+                maximumFractionDigits: 0
+              }).format(value);
+            }
+          },
+          axisTick: { show: false },
+          axisLine: { show: false }
+        },
+        series: [
+          {
+            name: 'Custo',
+            type: 'line',
+            data: datasets[0]?.data || Array(6).fill(0),
+            itemStyle: {
+              color: '#fff',
+              borderColor: getColor('secondary'),
+              borderWidth: 2
+            },
+            lineStyle: {
+              color: getColor('secondary-bg')
+            },
+            showSymbol: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            smooth: false,
+            hoverAnimation: true
+          },
+          {
+            name: 'Valor',
+            type: 'line',
+            data: datasets[1]?.data || Array(6).fill(0),
+            itemStyle: {
+              color: '#fff',
+              borderColor: window.phoenix.utils.getColor('primary'),
+              borderWidth: 2
+            },
+            lineStyle: {
+              color: window.phoenix.utils.getColor('primary')
+            },
+            showSymbol: true,
+            symbol: 'circle',
+            symbolSize: 6,
+            smooth: false,
+            hoverAnimation: true
+          }
+        ]
+      };
+
+      console.log('Opções finais do gráfico:', {
+        labels: lineChartOption.xAxis.data,
+        custoData: lineChartOption.series[0].data,
+        valorData: lineChartOption.series[1].data
+      });
+
+      lineChartInstance.current.setOption(lineChartOption);
+
+      setTimeout(() => {
+        if (lineChartInstance.current) {
+          lineChartInstance.current.resize({
+            width: 'auto',
+            height: 'auto'
+          });
+        }
+      }, 0);
+    }
+  };
 
   // Atualizar as funções de dropdown
   const handleSelectAllWallets = () => {
@@ -299,7 +558,7 @@ const OverviewCard = ({ height }) => {
             </span>
           </button>
           <ul 
-            className="dropdown-menu py-1" 
+            className="dropdown-menu py-1 custom-scrollbar" 
             aria-labelledby="walletDropdown" 
             style={{ 
               width: '200px',
@@ -366,5 +625,29 @@ const OverviewCard = ({ height }) => {
     </div>
   );
 };
+
+const styles = `
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: ${getColor('tertiary-bg')};
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: ${getColor('secondary')};
+    border-radius: 2px;
+  }
+  
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: ${getColor('secondary')} ${getColor('tertiary-bg')};
+  }
+`;
+
+const styleSheet = document.createElement('style');
+styleSheet.textContent = styles;
+document.head.appendChild(styleSheet);
 
 export default OverviewCard; 

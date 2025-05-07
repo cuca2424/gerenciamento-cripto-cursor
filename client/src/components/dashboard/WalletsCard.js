@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CardBase from './CardBase';
+import { useCurrency } from "../../contexts/CurrencyContext";
 
 const WalletsCard = ({ height }) => {
   const navigate = useNavigate();
+  const { currency } = useCurrency();
   const [carteiras, setCarteiras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,9 +49,9 @@ const WalletsCard = ({ height }) => {
               console.error(`Erro ao buscar saldo da carteira ${carteira._id}`);
               return {
                 ...carteira,
-                saldo: 0,
-                aporte: 0,
-                lucro: 0,
+                saldo: { brl: 0, usd: 0 },
+                aporte: { brl: 0, usd: 0 },
+                lucro: { brl: 0, usd: 0 },
                 variacao: 0
               };
             }
@@ -57,18 +59,27 @@ const WalletsCard = ({ height }) => {
             const saldoData = await saldoResponse.json();
             return {
               ...carteira,
-              saldo: saldoData.saldoTotal || 0,
-              aporte: saldoData.aporteTotal || 0,
-              lucro: saldoData.lucro || 0,
-              variacao: saldoData.percentualLucro || 0
+              saldo: {
+                brl: saldoData.brl?.saldoTotal || 0,
+                usd: saldoData.usd?.saldoTotal || 0
+              },
+              aporte: {
+                brl: saldoData.brl?.custoTotalCriptos || 0,
+                usd: saldoData.usd?.custoTotalCriptos || 0
+              },
+              lucro: {
+                brl: saldoData.brl?.lucro || 0,
+                usd: saldoData.usd?.lucro || 0
+              },
+              variacao: saldoData.brl?.percentualLucro || 0 // Percentual é o mesmo para ambas moedas
             };
           } catch (error) {
             console.error(`Erro ao processar carteira ${carteira._id}:`, error);
             return {
               ...carteira,
-              saldo: 0,
-              aporte: 0,
-              lucro: 0,
+              saldo: { brl: 0, usd: 0 },
+              aporte: { brl: 0, usd: 0 },
+              lucro: { brl: 0, usd: 0 },
               variacao: 0
             };
           }
@@ -88,7 +99,8 @@ const WalletsCard = ({ height }) => {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: currency === 'USD' ? 'USD' : 'BRL',
+      currencyDisplay: 'symbol'
     }).format(value);
   };
 
@@ -125,7 +137,7 @@ const WalletsCard = ({ height }) => {
               <div className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0" style={{ fontSize: '1.05rem' }}>{carteira.nome}</h5>
                 <div>
-                  <span className="fw-bold">{formatCurrency(carteira.saldo)}</span>
+                  <span className="fw-bold">{formatCurrency(carteira.saldo[currency.toLowerCase()])}</span>
                   <span className={`ms-2 ${carteira.variacao >= 0 ? 'text-success' : 'text-danger'}`}>
                     {formatPercentage(carteira.variacao)}
                   </span>

@@ -36,11 +36,22 @@ function Historico() {
     fetchHistorico();
   }, []);
 
-  const formatCurrency = (value) => {
+  const formatCurrency = (isUSD, valor, valorOriginal, descricao) => {
+    console.log(isUSD, valor, valorOriginal, descricao);
+    // Se a transação foi em USD, usar o valorOriginal
+    if (isUSD && valorOriginal !== null && valorOriginal !== undefined) {
+      const formatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      }).format(valorOriginal);
+      return formatted.replace('$', 'US$ ');
+    }
+    
+    // Se não for USD ou não tiver valorOriginal, usar o valor em BRL
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(value);
+    }).format(valor);
   };
 
   const formatDate = (date) => {
@@ -60,7 +71,7 @@ function Historico() {
     const buscaMatch = filtro.busca === '' || 
       transacao.descricao.toLowerCase().includes(filtro.busca.toLowerCase()) ||
       formatDate(transacao.data).includes(filtro.busca) ||
-      formatCurrency(transacao.valor).includes(filtro.busca);
+      formatCurrency(transacao.moedaOriginal === 'USD', transacao.valor, transacao.valorOriginal, transacao.descricao).includes(filtro.busca);
 
     const tipoMatch = filtro.tipo === 'todos' || 
       transacao.tipo.toLowerCase() === filtro.tipo.toLowerCase();
@@ -154,6 +165,7 @@ function Historico() {
                   <tbody>
                     {transacoesFiltradas.length > 0 ? (
                       transacoesFiltradas.map(transacao => (
+                        console.log('Transação => ', transacao),
                         <tr key={transacao.id}>
                           <td>{formatDate(transacao.data)}</td>
                           <td>
@@ -174,7 +186,7 @@ function Historico() {
                             </span>
                           </td>
                           <td>{transacao.descricao}</td>
-                          <td>{formatCurrency(transacao.valor)}</td>
+                          <td>{formatCurrency(transacao.moedaOriginal === 'USD', transacao.valor, transacao.valorOriginal, transacao.descricao)}</td>
                         </tr>
                       ))
                     ) : (

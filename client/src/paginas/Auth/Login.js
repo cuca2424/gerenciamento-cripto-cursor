@@ -1,13 +1,31 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useUser } from "../../contexts/UserContext";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [lembrarDeMim, setLembrarDeMim] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
+  const { fetchUserData } = useUser();
 
   const navigate = useNavigate();
+
+  const handleKeyPress = (e, field) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      switch (field) {
+        case 'email':
+          document.getElementById('password').focus();
+          break;
+        case 'password':
+          handleLogin();
+          break;
+        default:
+          break;
+      }
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !senha) {
@@ -24,15 +42,20 @@ function Login() {
         body: JSON.stringify({
           email: email,
           senha: senha,
+          lembrarDeMim: lembrarDeMim
         }),
       });
 
       const data = await resposta.json();
 
+      console.log('data: ', data);
+
       if (resposta.ok) {
         // Salvar token e dados do usuário
         localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        
+        // Buscar dados atualizados do usuário
+        await fetchUserData();
         
         // Limpar campos
         setEmail("");
@@ -42,7 +65,11 @@ function Login() {
         // Redirecionar para dashboard
         navigate("/dashboard");
       } else {
-        setMensagemErro(data.error || "Erro ao fazer login");
+        if (data.code === 'INACTIVE_ACCOUNT') {
+          navigate(`/conta-inativa?email=${encodeURIComponent(email)}`);
+        } else {
+          setMensagemErro(data.error || "Erro ao fazer login");
+        }
       }
     } catch (err) {
       setMensagemErro("Houve um erro ao tentar fazer login. Tente novamente mais tarde.");
@@ -66,13 +93,27 @@ function Login() {
                 <div class="mb-3 text-start">
                   <label class="form-label" for="email">Endereço de Email</label>
                   <div class="form-icon-container">
-                    <input class="form-control form-icon-input" id="email" type="email" placeholder="nome@exemplo.com" onChange={e => setEmail(e.target.value)} /><span class="fas fa-user text-body fs-9 form-icon"></span>
+                    <input 
+                      class="form-control form-icon-input" 
+                      id="email" 
+                      type="email" 
+                      placeholder="nome@exemplo.com" 
+                      onChange={e => setEmail(e.target.value)}
+                      onKeyPress={e => handleKeyPress(e, 'email')}
+                    /><span class="fas fa-user text-body fs-9 form-icon"></span>
                   </div>
                 </div>
                 <div class="mb-3 text-start">
                   <label class="form-label" for="password">Senha</label>
                   <div class="form-icon-container">
-                    <input class="form-control form-icon-input pe-6" id="password" type="password" placeholder="Senha" onChange={e => setSenha(e.target.value)} /><span class="fas fa-key text-body fs-9 form-icon"></span>
+                    <input 
+                      class="form-control form-icon-input pe-6" 
+                      id="password" 
+                      type="password" 
+                      placeholder="Senha" 
+                      onChange={e => setSenha(e.target.value)}
+                      onKeyPress={e => handleKeyPress(e, 'password')}
+                    /><span class="fas fa-key text-body fs-9 form-icon"></span>
                   </div>
                 </div>
                 <div class="row flex-between-center mb-3">

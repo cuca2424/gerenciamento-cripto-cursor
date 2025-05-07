@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrency } from "../../contexts/CurrencyContext";
 
 function DepositoSaque() {
+  const { currency } = useCurrency();
   const [activeTab, setActiveTab] = useState('deposito');
   const [valor, setValor] = useState('');
-  const [saldoAtual, setSaldoAtual] = useState(0);
+  const [saldoAtual, setSaldoAtual] = useState({
+    brl: 0,
+    usd: 0
+  });
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState({ texto: '', tipo: '' });
 
@@ -24,7 +29,10 @@ function DepositoSaque() {
         }
 
         const data = await response.json();
-        setSaldoAtual(data.saldoReais || 0);
+        setSaldoAtual({
+          brl: data.brl?.saldoReais || 0,
+          usd: data.usd?.saldoReais || 0
+        });
       } catch (err) {
         setMensagem({ texto: 'Erro ao carregar saldo', tipo: 'danger' });
       }
@@ -46,7 +54,8 @@ function DepositoSaque() {
         throw new Error('Valor inválido');
       }
 
-      if (activeTab === 'saque' && valorNumerico > saldoAtual) {
+      const saldoAtualMoeda = saldoAtual[currency.toLowerCase()];
+      if (activeTab === 'saque' && valorNumerico > saldoAtualMoeda) {
         throw new Error('Saldo insuficiente para saque.');
       }
 
@@ -57,7 +66,10 @@ function DepositoSaque() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ valor: valorNumerico })
+        body: JSON.stringify({ 
+          valor: valorNumerico,
+          moeda: currency
+        })
       });
 
       const data = await response.json();
@@ -67,39 +79,35 @@ function DepositoSaque() {
         throw new Error(data.error || 'Erro ao processar operação');
       }
 
-      // Verificar a estrutura da resposta
-      if (typeof data.saldoAtual === 'undefined') {
-        console.error('Estrutura da resposta inesperada:', data);
-        // Se não tiver saldoAtual, tenta usar outro campo ou mantém o saldo atual
-        setMensagem({ 
-          texto: data.message || 'Operação realizada com sucesso', 
-          tipo: 'success' 
-        });
-        return;
+      // Após a operação, buscar o saldo atualizado
+      const saldoResponse = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/usuario/geral`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!saldoResponse.ok) {
+        throw new Error('Erro ao atualizar saldo');
       }
 
-      // Tentar converter o novo saldo
-      const novoSaldo = Number(data.saldoAtual);
-      console.log('Novo saldo convertido:', novoSaldo);
+      const saldoData = await saldoResponse.json();
+      console.log('Novo saldo recebido:', saldoData);
 
-      if (isNaN(novoSaldo)) {
-        console.error('Valor inválido recebido:', data.saldoAtual);
-        // Se a conversão falhar, mantém o saldo atual
-        setMensagem({ 
-          texto: data.message || 'Operação realizada com sucesso', 
-          tipo: 'success' 
-        });
-        return;
-      }
+      // Atualizar saldo com os novos valores
+      const novoSaldo = {
+        brl: saldoData.brl?.saldoReais || saldoAtual.brl,
+        usd: saldoData.usd?.saldoReais || saldoAtual.usd
+      };
 
-      // Atualizar saldo após operação bem-sucedida
       setSaldoAtual(novoSaldo);
       setValor('');
       setMensagem({ 
-        texto: `${data.message} Novo saldo: ${formatCurrency(novoSaldo)}`, 
+        texto: `${data.message || 'Operação realizada com sucesso!'} Novo saldo: ${formatCurrency(novoSaldo[currency.toLowerCase()])}`, 
         tipo: 'success' 
       });
     } catch (err) {
+      console.error('Erro na operação:', err);
       setMensagem({ texto: err.message, tipo: 'danger' });
     } finally {
       setLoading(false);
@@ -109,7 +117,8 @@ function DepositoSaque() {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: currency === 'USD' ? 'USD' : 'BRL',
+      currencyDisplay: 'symbol'
     }).format(value);
   };
 
@@ -120,7 +129,7 @@ function DepositoSaque() {
           <div className="card shadow-sm mb-4">
             <div className="card-body text-center">
               <h4 className="card-title mb-3">Saldo Atual</h4>
-              <div className="display-4 mb-2">{formatCurrency(saldoAtual)}</div>
+              <div className="display-4 mb-2">{formatCurrency(saldoAtual[currency.toLowerCase()])}</div>
               <div className="text-muted">Disponível para saque</div>
             </div>
           </div>
@@ -164,7 +173,7 @@ function DepositoSaque() {
                     <div className="mb-4 text-center">
                       <label className="form-label h5">Valor do Depósito</label>
                       <div className="input-group input-group-lg mx-auto" style={{ maxWidth: '300px' }}>
-                        <span className="input-group-text">R$</span>
+                        <span className="input-group-text">{currency === 'USD' ? '$' : 'R$'}</span>
                         <input
                           type="number"
                           className="form-control"
@@ -199,7 +208,7 @@ function DepositoSaque() {
                     <div className="mb-4 text-center">
                       <label className="form-label h5">Valor do Saque</label>
                       <div className="input-group input-group-lg mx-auto" style={{ maxWidth: '300px' }}>
-                        <span className="input-group-text">R$</span>
+                        <span className="input-group-text">{currency === 'USD' ? '$' : 'R$'}</span>
                         <input
                           type="number"
                           className="form-control"
@@ -208,15 +217,15 @@ function DepositoSaque() {
                           placeholder="0,00"
                           step="0.01"
                           min="0"
-                          max={saldoAtual}
+                          max={saldoAtual[currency.toLowerCase()]}
                           required
                           disabled={loading}
                         />
                       </div>
-                      <small className={`mt-2 d-block ${parseFloat(valor) > saldoAtual ? 'text-danger' : 'text-muted'}`}>
-                        {parseFloat(valor) > saldoAtual ? 
+                      <small className={`mt-2 d-block ${parseFloat(valor) > saldoAtual[currency.toLowerCase()] ? 'text-danger' : 'text-muted'}`}>
+                        {parseFloat(valor) > saldoAtual[currency.toLowerCase()] ? 
                           'Saldo insuficiente para realizar o saque.' : 
-                          `Saldo disponível: ${formatCurrency(saldoAtual)}`
+                          `Saldo disponível: ${formatCurrency(saldoAtual[currency.toLowerCase()])}`
                         }
                       </small>
                     </div>
@@ -225,7 +234,7 @@ function DepositoSaque() {
                       <button 
                         type="submit" 
                         className="btn btn-primary btn-lg px-5"
-                        disabled={loading || saldoAtual <= 0 || parseFloat(valor) > saldoAtual}
+                        disabled={loading || saldoAtual[currency.toLowerCase()] <= 0 || parseFloat(valor) > saldoAtual[currency.toLowerCase()]}
                       >
                         {loading ? 'Processando...' : 'Solicitar Saque'}
                       </button>

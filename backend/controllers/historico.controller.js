@@ -1,4 +1,3 @@
-
 // Controller para as operações relacionadas ao histórico
 
 // Exibir histórico de operações
@@ -16,6 +15,8 @@ exports.getHistory = async (req, res) => {
       tipo: item.tipo,
       descricao: item.descricao,
       valor: item.valor,
+      moedaOriginal: item.moedaOriginal,
+      valorOriginal: item.valorOriginal,
       carteiraId: item.carteiraId,
       carteiraNome: item.carteiraNome,
       lucro: item.lucro

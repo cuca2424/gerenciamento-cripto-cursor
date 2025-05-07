@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import CardBase from './CardBase';
+import { useCurrency } from "../../contexts/CurrencyContext";
 
 const MarketVariations = ({ height }) => {
+  const { currency } = useCurrency();
   const [showProfits, setShowProfits] = useState(true);
   const [variacoes, setVariacoes] = useState({
     positivas: [],
@@ -52,7 +54,8 @@ const MarketVariations = ({ height }) => {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: currency === 'USD' ? 'USD' : 'BRL',
+      currencyDisplay: 'symbol'
     }).format(value);
   };
 
@@ -130,10 +133,14 @@ const MarketVariations = ({ height }) => {
             <div className="d-flex justify-content-between align-items-center">
               <div style={{ fontSize: '0.85rem' }}>
                 <span className="fw-bold">{crypto.sigla}</span>
-                <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({crypto.nome})</span>
+                <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>
+                  ({crypto.nome.length > 15 ? crypto.nome.slice(0, 15) + '...' : crypto.nome})
+                </span>
               </div>
               <div className="text-end" style={{ fontSize: '0.85rem' }}>
-                <span className="text-muted" style={{ fontSize: '0.75rem' }}>{formatCurrency(crypto.precoAtual)}</span>
+                <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                  {formatCurrency(crypto.preco[currency.toLowerCase()])}
+                </span>
                 <span className={`${crypto.variacao24h >= 0 ? 'text-success' : 'text-danger'} fw-bold ms-2`}>
                   {formatPercentage(crypto.variacao24h)}
                 </span>
@@ -155,11 +162,15 @@ const MarketVariations = ({ height }) => {
                   <div key={crypto.sigla} className="mb-1">
                     <div className="d-flex justify-content-between align-items-center">
                       <div style={{ fontSize: '0.85rem' }}>
-                        <span className="fw-bold">{crypto.sigla}</span>
-                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({crypto.nome})</span>
+                        <span className="fw-bold">{crypto.nome.length > 15 ? crypto.nome.slice(0, 15) + '...' : crypto.nome}</span>
+                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>
+                          ({crypto.sigla})
+                        </span>
                       </div>
                       <div className="text-end" style={{ fontSize: '0.85rem' }}>
-                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{formatCurrency(crypto.precoAtual)}</span>
+                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          {formatCurrency(crypto.preco[currency.toLowerCase()])}
+                        </span>
                         <span className="text-success fw-bold ms-2">{formatPercentage(crypto.variacao24h)}</span>
                       </div>
                     </div>
@@ -176,11 +187,15 @@ const MarketVariations = ({ height }) => {
                   <div key={crypto.sigla} className="mb-1">
                     <div className="d-flex justify-content-between align-items-center">
                       <div style={{ fontSize: '0.85rem' }}>
-                        <span className="fw-bold">{crypto.sigla}</span>
-                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>({crypto.nome})</span>
+                        <span className="fw-bold">{crypto.nome.length > 15 ? crypto.nome.slice(0, 15) + '...' : crypto.nome}</span>
+                        <span className="text-muted ms-1" style={{ fontSize: '0.75rem' }}>
+                          ({crypto.sigla})
+                        </span>
                       </div>
                       <div className="text-end" style={{ fontSize: '0.85rem' }}>
-                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{formatCurrency(crypto.precoAtual)}</span>
+                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          {formatCurrency(crypto.preco[currency.toLowerCase()])}
+                        </span>
                         <span className="text-danger fw-bold ms-2">{formatPercentage(crypto.variacao24h)}</span>
                       </div>
                     </div>

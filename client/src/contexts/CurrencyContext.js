@@ -1,39 +1,31 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-// Criando o contexto
 const CurrencyContext = createContext();
 
 export function CurrencyProvider({ children }) {
-  // 1️⃣ Recupera a moeda do localStorage (ou usa "USD" como padrão)
   const [currency, setCurrency] = useState(() => {
-    return localStorage.getItem("currency") || "USD";
+    // Try to get the saved currency from localStorage, default to BRL if not found
+    const savedCurrency = localStorage.getItem('currency');
+    return savedCurrency || 'BRL';
   });
 
-  // 2️⃣ Estado para armazenar a cotação do dólar
-  const [exchangeRate, setExchangeRate] = useState(5.2); // Valor padrão
-
-  // 3️⃣ Efeito que salva a moeda no localStorage e busca a cotação do dólar quando necessário
+  // Save currency to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("currency", currency); // Salva a moeda escolhida
-
-    if (currency === "BRL") {
-      fetch(`${process.env.REACT_APP_ENDPOINT_API}/valor-dolar`)
-        .then((res) => res.json())
-        .then((data) => {
-          setExchangeRate(data.valor); // Atualiza a cotação do dólar
-        })
-        .catch((err) => console.error("Erro ao buscar cotação:", err));
-    }
+    localStorage.setItem('currency', currency);
   }, [currency]);
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, exchangeRate }}>
+    <CurrencyContext.Provider value={{ currency, setCurrency }}>
       {children}
     </CurrencyContext.Provider>
   );
 }
 
-// Hook para acessar o contexto facilmente
+// Custom hook to use the currency context
 export function useCurrency() {
-  return useContext(CurrencyContext);
-}
+  const context = useContext(CurrencyContext);
+  if (!context) {
+    throw new Error('useCurrency must be used within a CurrencyProvider');
+  }
+  return context;
+} 

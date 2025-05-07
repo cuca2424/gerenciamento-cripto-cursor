@@ -1,19 +1,20 @@
 import React, { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
+import { useCurrency } from "../../contexts/CurrencyContext";
 
 /**
  * Componente de Gráfico de Pizza
  * @param {Object} props
  * @param {number} props.height - Altura do container do gráfico
- * @param {Object} props.data - Dados para o gráfico
- * @param {string[]} props.data.labels - Nomes dos segmentos
- * @param {number[]} props.data.data - Valores dos segmentos
- * @param {string[]} props.data.backgroundColor - Cores dos segmentos
+ * @param {Object} props.data - Dados para o gráfico em ambas as moedas
+ * @param {Object} props.data.brl - Dados em BRL
+ * @param {Object} props.data.usd - Dados em USD
  * @param {string} [props.title] - Título do gráfico (opcional)
  */
 const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
+  const { currency } = useCurrency();
 
   useEffect(() => {
     if (chartRef.current) {
@@ -24,6 +25,9 @@ const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) =>
 
       chartInstance.current = echarts.init(chartRef.current);
 
+      // Usar os dados da moeda selecionada
+      const currencyData = data[currency.toLowerCase()];
+
       const option = {
         tooltip: {
           trigger: 'item',
@@ -33,17 +37,17 @@ const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) =>
           textStyle: { color: '#5e6e82' },
           borderWidth: 1,
           formatter: (params) => {
-            const total = data.data.reduce((sum, value) => sum + value, 0);
+            const total = currencyData.data.reduce((sum, value) => sum + value, 0);
             const percentual = ((params.value / total) * 100).toFixed(2);
             
-            // Formatar o valor em reais
+            // Formatar o valor na moeda correta
             const valor = params.value;
-            const valorFormatado = new Intl.NumberFormat('pt-BR', {
+            const valorFormatado = new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'pt-BR', {
               style: 'currency',
-              currency: 'BRL'
+              currency: currency
             }).format(valor);
             
-            // Mostrar nome, valor total em reais e porcentagem
+            // Mostrar nome, valor total na moeda selecionada e porcentagem
             return `${params.name}: ${valorFormatado} (${percentual}%)`;
           }
         },
@@ -57,7 +61,7 @@ const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) =>
         },
         series: [
           {
-            name: data.labels.length > 0 ? 'Distribuição' : '',
+            name: currencyData.labels.length > 0 ? 'Distribuição' : '',
             type: 'pie',
             radius: ['40%', '70%'],
             center: ['50%', '45%'],
@@ -70,10 +74,10 @@ const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) =>
             labelLine: {
               show: false
             },
-            data: data.labels.map((label, index) => ({
-              value: data.data[index],
+            data: currencyData.labels.map((label, index) => ({
+              value: currencyData.data[index],
               name: label,
-              itemStyle: { color: data.backgroundColor[index] }
+              itemStyle: { color: currencyData.backgroundColor[index] }
             }))
           }
         ]
@@ -94,7 +98,7 @@ const PieChart = ({ height, data, title = "Distribuição de Criptomoedas" }) =>
         }
       };
     }
-  }, [data]);
+  }, [data, currency]);
 
   return (
     <div 

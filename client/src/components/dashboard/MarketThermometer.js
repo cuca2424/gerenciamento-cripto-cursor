@@ -429,11 +429,11 @@ const MarketThermometer = ({ height }) => {
         ) : (
           <div className="row align-items-center h-100">
             {/* BTC Dominance - Gauge Chart */}
-            <div className="col-4 d-flex flex-column justify-content-center">
+            <div className="col-12 col-md-4 d-flex flex-column justify-content-center mb-3 mb-md-0">
               <div className="text-center mb-3">
                 <h6 className="mb-0 fs-7 fs-md-8 fs-lg-9">Dominância BTC</h6>
                 {marketData && (
-                  <small className="text-muted">
+                  <small className="text-muted d-none d-sm-block">
                     {marketData.dominanciaBTC.tendencia}
                   </small>
                 )}
@@ -443,17 +443,17 @@ const MarketThermometer = ({ height }) => {
                 className="d-flex align-items-center justify-content-center"
                 style={{ 
                   width: '100%', 
-                  height: '180px'
+                  height: window.innerWidth < 768 ? '200px' : '180px'
                 }} 
               />
             </div>
 
             {/* Fear & Greed Index - Gauge Chart */}
-            <div className="col-4 d-flex flex-column justify-content-center">
+            <div className="col-12 col-md-4 d-flex flex-column justify-content-center mb-3 mb-md-0">
               <div className="text-center mb-3">
                 <h6 className="mb-0 fs-7 fs-md-8 fs-lg-9">Índice Medo e Ganância</h6>
                 {marketData && (
-                  <small className={`text-${marketData.indiceMedoGanancia.valor >= 50 ? 'success' : 'danger'}`}>
+                  <small className={`text-${marketData.indiceMedoGanancia.valor >= 50 ? 'success' : 'danger'} d-none d-sm-block`}>
                     {marketData.indiceMedoGanancia.classificacao}
                   </small>
                 )}
@@ -463,17 +463,17 @@ const MarketThermometer = ({ height }) => {
                 className="d-flex align-items-center justify-content-center"
                 style={{ 
                   width: '100%', 
-                  height: '180px'
+                  height: window.innerWidth < 768 ? '200px' : '180px'
                 }} 
               />
             </div>
 
             {/* Altcoin Season Index - Gauge Chart */}
-            <div className="col-4 d-flex flex-column justify-content-center">
+            <div className="col-12 col-md-4 d-flex flex-column justify-content-center">
               <div className="text-center mb-3">
                 <h6 className="mb-0 fs-7 fs-md-8 fs-lg-9">Índice Altcoin Season</h6>
                 {marketData && (
-                  <small className={`text-${marketData.altcoinSeason.status === 'Altcoin Season' ? 'primary' : (marketData.altcoinSeason.status === 'Bitcoin Season' ? 'warning' : 'muted')}`}>
+                  <small className={`text-${marketData.altcoinSeason.status === 'Altcoin Season' ? 'primary' : (marketData.altcoinSeason.status === 'Bitcoin Season' ? 'warning' : 'muted')} d-none d-sm-block`}>
                     {marketData.altcoinSeason.status}
                   </small>
                 )}
@@ -483,7 +483,7 @@ const MarketThermometer = ({ height }) => {
                 className="d-flex align-items-center justify-content-center"
                 style={{ 
                   width: '100%', 
-                  height: '180px'
+                  height: window.innerWidth < 768 ? '200px' : '180px'
                 }} 
               />
             </div>

@@ -15,6 +15,7 @@ exports.createWallet = async (req, res) => {
       ativos: [],
       saldoTotal: 0,
       aporteTotal: 0,
+      custoTotalCriptos: 0,
       lucro: 0,
       percentualLucro: 0,
       dataCriacao: new Date()
@@ -47,7 +48,7 @@ exports.createWallet = async (req, res) => {
 exports.addAsset = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, quantidade, valorUnitario } = req.body;
+    const { nome, quantidade, valorUnitario, moeda = 'BRL' } = req.body;
     
     if (!nome || !quantidade || !valorUnitario) {
       return res.status(400).json({ error: 'Nome, quantidade e valor unitário são obrigatórios' });
@@ -62,29 +63,52 @@ exports.addAsset = async (req, res) => {
     if (!wallet) {
       return res.status(404).json({ error: 'Carteira não encontrada' });
     }
+
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
+
+    // Converter para BRL se o valor vier em USD
+    const valorUnitarioBRL = moeda === 'USD' ? valorUnitario * cotacaoDolar.valor : valorUnitario;
+    const valorTotalBRL = quantidade * valorUnitarioBRL;
     
     // Buscar usuário para verificar saldo
     const user = await req.db.collection('usuarios').findOne({ _id: new req.ObjectId(req.userId) });
     
-    const valorTotal = quantidade * valorUnitario;
-    
-    if (valorTotal > user.saldoReais) {
-      return res.status(400).json({ error: 'Saldo em reais insuficiente para este aporte' });
+    // Verificar saldo em reais (convertendo se necessário)
+    if (moeda === 'USD') {
+      // Se o valor foi informado em USD, verificar se o usuário tem saldo em reais equivalente
+      if (valorTotalBRL > user.saldoReais) {
+        return res.status(400).json({ error: 'Saldo insuficiente para este aporte' });
+      }
+    } else {
+      if (valorTotalBRL > user.saldoReais) {
+        return res.status(400).json({ error: 'Saldo insuficiente para este aporte' });
+      }
     }
     
     // Verificar se a criptomoeda existe na tabela de criptomoedas
-    const cryptoData = await req.db.collection('criptomoedas').findOne({ nome });
+    const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome });
     if (!cryptoData) {
       return res.status(404).json({ error: 'Criptomoeda não encontrada na base de dados' });
     }
     
-    // Atualizar saldo do usuário
+    // Converter o preço atual da cripto de USD para BRL
+    const precoAtualBRL = cryptoData.precoAtual * cotacaoDolar.valor;
+    
+    // Atualizar saldo do usuário (sempre em reais)
     await req.db.collection('usuarios').updateOne(
       { _id: new req.ObjectId(req.userId) },
       { 
         $inc: { 
-          saldoReais: -valorTotal,
-          aporteTotal: valorTotal 
+          saldoReais: -valorTotalBRL,
+          aporteTotal: valorTotalBRL 
         } 
       }
     );
@@ -93,12 +117,13 @@ exports.addAsset = async (req, res) => {
     const existingAssetIndex = wallet.ativos.findIndex(a => a.nome === nome);
     
     let updatedAtivos = [...wallet.ativos];
+    let novoCustoTotalCriptos = wallet.custoTotalCriptos || 0;
     
     if (existingAssetIndex >= 0) {
       // Atualizar ativo existente
       const existingAsset = wallet.ativos[existingAssetIndex];
       const newQuantity = existingAsset.quantidade + quantidade;
-      const newTotal = existingAsset.valorTotal + valorTotal;
+      const newTotal = existingAsset.valorTotal + valorTotalBRL;
       const newAvgPrice = newTotal / newQuantity;
       
       updatedAtivos[existingAssetIndex] = {
@@ -106,27 +131,31 @@ exports.addAsset = async (req, res) => {
         quantidade: newQuantity,
         valorUnitario: newAvgPrice,
         valorTotal: newTotal,
-        precoAtual: cryptoData.precoAtual
+        precoAtual: precoAtualBRL // Usar o preço em BRL
       };
+      
+      novoCustoTotalCriptos = novoCustoTotalCriptos - existingAsset.valorTotal + newTotal;
     } else {
       // Adicionar novo ativo
       updatedAtivos.push({
         nome,
         quantidade,
-        valorUnitario,
-        valorTotal,
+        valorUnitario: valorUnitarioBRL,
+        valorTotal: valorTotalBRL,
         percentual: 0,
-        precoAtual: cryptoData.precoAtual
+        precoAtual: precoAtualBRL // Usar o preço em BRL
       });
+      
+      novoCustoTotalCriptos += valorTotalBRL;
     }
     
     // Calcular o valor atual total dos ativos com base nos preços atuais
     const saldoAtualTotal = updatedAtivos.reduce((total, ativo) => {
-      return total + (ativo.quantidade * ativo.precoAtual);
+      return total + (ativo.quantidade * ativo.precoAtual); // precoAtual já está em BRL
     }, 0);
     
     // Atualizar totais da carteira
-    const newAporteTotal = wallet.aporteTotal + valorTotal;
+    const newAporteTotal = wallet.aporteTotal + valorTotalBRL;
     
     // Recalcular percentuais com base no saldo atual total
     updatedAtivos = updatedAtivos.map(ativo => ({
@@ -146,6 +175,7 @@ exports.addAsset = async (req, res) => {
           ativos: updatedAtivos,
           saldoTotal: saldoAtualTotal,
           aporteTotal: newAporteTotal,
+          custoTotalCriptos: novoCustoTotalCriptos,
           lucro: lucro,
           percentualLucro: percentualLucro
         } 
@@ -156,20 +186,36 @@ exports.addAsset = async (req, res) => {
     await req.db.collection('historico').insertOne({
       userId: req.userId,
       tipo: 'compra',
-      descricao: `Comprou ${quantidade} ${nome}`,
-      valor: valorTotal,
+      descricao: moeda === 'USD' 
+        ? `Comprou ${quantidade} ${nome} por US$ ${valorUnitario.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cada` 
+        : `Comprou ${quantidade} ${nome} por R$ ${valorUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cada`,
+      valor: valorTotalBRL,
+      moedaOriginal: moeda,
+      valorOriginal: moeda === 'USD' ? valorUnitario * quantidade : null,
       data: new Date(),
       carteiraId: new req.ObjectId(id),
       carteiraNome: wallet.nome
     });
     
-    res.json({
-      message: `Compra de ${quantidade} ${nome} realizada com sucesso`,
-      saldoRestante: user.saldoReais - valorTotal
-    });
+    // Preparar resposta com valores em ambas as moedas
+    const response = {
+      message: 'Aporte adicionado com sucesso',
+      brl: {
+      saldoAtual: saldoAtualTotal,
+      lucro: lucro,
+      percentualLucro: percentualLucro
+      },
+      usd: {
+        saldoAtual: saldoAtualTotal / cotacaoDolar.valor,
+        lucro: lucro / cotacaoDolar.valor,
+        percentualLucro: percentualLucro // Percentual é o mesmo independente da moeda
+      }
+    };
+    
+    res.json(response);
   } catch (error) {
-    console.error('Erro ao adicionar ativo:', error);
-    res.status(500).json({ error: 'Erro ao adicionar ativo' });
+    console.error('Erro ao adicionar aporte:', error);
+    res.status(500).json({ error: 'Erro ao adicionar aporte' });
   }
 };
 
@@ -177,7 +223,7 @@ exports.addAsset = async (req, res) => {
 exports.sellAsset = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, quantidade, valorUnitario } = req.body;
+    const { nome, quantidade, valorUnitario, moeda = 'BRL' } = req.body;
     
     if (!nome || !quantidade || !valorUnitario) {
       return res.status(400).json({ error: 'Nome, quantidade e valor unitário são obrigatórios' });
@@ -192,23 +238,40 @@ exports.sellAsset = async (req, res) => {
     if (!wallet) {
       return res.status(404).json({ error: 'Carteira não encontrada' });
     }
+
+    // Se a moeda for USD, converter para BRL
+    let valorUnitarioEmReais = valorUnitario;
+    if (moeda === 'USD') {
+      // Buscar cotação do dólar
+      const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+        {},
+        { sort: { timestamp: -1 } }
+      );
+
+      if (!cotacaoDolar) {
+        return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+      }
+
+      valorUnitarioEmReais = valorUnitario * cotacaoDolar.valor;
+    }
     
     // Verificar se o ativo existe na carteira
     const existingAssetIndex = wallet.ativos.findIndex(a => a.nome === nome);
-    
     if (existingAssetIndex === -1) {
-      return res.status(404).json({ error: `Ativo ${nome} não encontrado na carteira` });
+      return res.status(404).json({ error: 'Ativo não encontrado na carteira' });
     }
     
     const existingAsset = wallet.ativos[existingAssetIndex];
     
+    // Verificar se há quantidade suficiente para venda
     if (existingAsset.quantidade < quantidade) {
-      return res.status(400).json({ error: `Quantidade insuficiente de ${nome} para venda` });
+      return res.status(400).json({ error: 'Quantidade insuficiente para venda' });
     }
     
-    const valorVenda = quantidade * valorUnitario;
-    const valorCusto = quantidade * existingAsset.valorUnitario;
-    const lucroVenda = valorVenda - valorCusto;
+    // Calcular valor da venda e lucro
+    const valorVenda = quantidade * valorUnitarioEmReais;
+    const custoMedio = existingAsset.valorUnitario;
+    const lucroVenda = valorVenda - (custoMedio * quantidade);
     
     // Atualizar saldo do usuário
     await req.db.collection('usuarios').updateOne(
@@ -218,15 +281,19 @@ exports.sellAsset = async (req, res) => {
     
     // Atualizar ativo na carteira
     let updatedAtivos = [...wallet.ativos];
-    updatedAtivos[existingAssetIndex] = {
-      ...existingAsset,
-      quantidade: existingAsset.quantidade - quantidade,
-      valorTotal: (existingAsset.quantidade - quantidade) * existingAsset.valorUnitario
-    };
+    const novaQuantidade = existingAsset.quantidade - quantidade;
+    const novoValorTotal = novaQuantidade * existingAsset.valorUnitario;
     
-    // Remover ativo se quantidade for zero
-    if (updatedAtivos[existingAssetIndex].quantidade === 0) {
+    if (novaQuantidade === 0) {
+      // Remover ativo se quantidade for zero
       updatedAtivos = updatedAtivos.filter((_, index) => index !== existingAssetIndex);
+    } else {
+      // Atualizar quantidade e valor total
+      updatedAtivos[existingAssetIndex] = {
+        ...existingAsset,
+        quantidade: novaQuantidade,
+        valorTotal: novoValorTotal
+      };
     }
     
     // Recalcular valor atual total dos ativos com base nos preços atuais
@@ -246,16 +313,26 @@ exports.sellAsset = async (req, res) => {
     const lucro = saldoAtualTotal - wallet.aporteTotal;
     const percentualLucro = wallet.aporteTotal > 0 ? (lucro / wallet.aporteTotal) * 100 : 0;
     
-    // Atualizar a carteira
+    // Calcular novo custo total das criptos
+    const novoCustoTotalCriptos = updatedAtivos.reduce((total, ativo) => {
+      return total + (ativo.quantidade * ativo.valorUnitario);
+    }, 0);
+    
+    // Atualizar a carteira com o lucro realizado e total de vendas
     await req.db.collection('carteiras').updateOne(
       { _id: new req.ObjectId(id) },
       { 
         $set: { 
           ativos: updatedAtivos,
           saldoTotal: saldoAtualTotal,
+          custoTotalCriptos: novoCustoTotalCriptos,
           lucro: lucro,
           percentualLucro: percentualLucro
-        } 
+        },
+        $inc: {
+          lucroRealizado: lucroVenda,
+          totalVendas: valorVenda
+        }
       }
     );
     
@@ -263,23 +340,51 @@ exports.sellAsset = async (req, res) => {
     await req.db.collection('historico').insertOne({
       userId: req.userId,
       tipo: 'venda',
-      descricao: `Vendeu ${quantidade} ${nome}`,
+      descricao: moeda === 'USD'
+        ? `Vendeu ${quantidade} ${nome} por US$ ${valorUnitario.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cada`
+        : `Vendeu ${quantidade} ${nome} por R$ ${valorUnitario.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cada`,
       valor: valorVenda,
-      lucro: lucroVenda,
+      moedaOriginal: moeda,
+      valorOriginal: moeda === 'USD' ? valorUnitario * quantidade : null,
       data: new Date(),
       carteiraId: new req.ObjectId(id),
       carteiraNome: wallet.nome
     });
     
-    const resultMessage = lucroVenda >= 0 
-      ? `Venda realizada com lucro de R$ ${lucroVenda.toFixed(2)}` 
-      : `Venda realizada com prejuízo de R$ ${Math.abs(lucroVenda).toFixed(2)}`;
-    
-    res.json({
-      message: `Venda de ${quantidade} ${nome} realizada com sucesso. ${resultMessage}`,
-      lucroVenda,
-      saldoAtualizado: valorVenda
+    // Registrar na coleção de imposto de renda
+    await req.db.collection('imposto_de_renda').insertOne({
+      userId: req.userId,
+      ativo: nome,
+      quantidade: quantidade,
+      valorVenda: valorVenda,
+      precoMedio: custoMedio,
+      lucroPrejuizo: lucroVenda,
+      dataVenda: new Date(),
+      carteiraId: new req.ObjectId(id),
+      carteiraNome: wallet.nome,
+      moeda: moeda
     });
+    
+    // Buscar cotação do dólar para o retorno
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    // Preparar resposta com valores em ambas as moedas
+    const response = {
+      message: 'Venda realizada com sucesso',
+      brl: {
+      lucro: lucroVenda,
+      saldoAtual: saldoAtualTotal
+      },
+      usd: {
+        lucro: cotacaoDolar ? lucroVenda / cotacaoDolar.valor : 0,
+        saldoAtual: cotacaoDolar ? saldoAtualTotal / cotacaoDolar.valor : 0
+      }
+    };
+    
+    res.json(response);
   } catch (error) {
     console.error('Erro ao vender ativo:', error);
     res.status(500).json({ error: 'Erro ao vender ativo' });
@@ -290,6 +395,16 @@ exports.sellAsset = async (req, res) => {
 exports.updateWalletPrices = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
     
     // Buscar a carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
@@ -302,61 +417,100 @@ exports.updateWalletPrices = async (req, res) => {
     }
     
     if (!wallet.ativos || wallet.ativos.length === 0) {
-      return res.json(wallet);
+      return res.json({
+        _id: wallet._id,
+        nome: wallet.nome,
+        ativos: [],
+        brl: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0
+        },
+        usd: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0
+        },
+        dataCriacao: wallet.dataCriacao
+      });
     }
     
     // Atualizar preços de cada ativo com base na tabela de criptomoedas
     let updatedAtivos = [];
+    let saldoAtualUSD = 0;
+    let custoTotalCriptosUSD = 0;
     
     for (const ativo of wallet.ativos) {
       // Buscar preço atual na tabela de criptomoedas
-      const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
+      const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome: ativo.nome });
       
       if (cryptoData) {
+        // O preço já está em USD
+        const valorAtualUSD = ativo.quantidade * cryptoData.precoAtual;
+        saldoAtualUSD += valorAtualUSD;
+        // O valorUnitario está em BRL, então convertemos para USD para o cálculo do custo
+        custoTotalCriptosUSD += ativo.quantidade * (ativo.valorUnitario / cotacaoDolar.valor);
+        
         updatedAtivos.push({
           ...ativo,
-          precoAtual: cryptoData.precoAtual,
-          valorAtual: ativo.quantidade * cryptoData.precoAtual
+          precoAtual: cryptoData.precoAtual, // Preço em USD
+          valorAtual: valorAtualUSD * cotacaoDolar.valor, // Valor em BRL
+          precoAtualUSD: cryptoData.precoAtual, // Preço em USD
+          valorAtualUSD: valorAtualUSD // Valor em USD
         });
       } else {
-        // Manter o preço anterior se não encontrar
         updatedAtivos.push(ativo);
+        saldoAtualUSD += ativo.valorTotal / cotacaoDolar.valor;
+        custoTotalCriptosUSD += ativo.valorTotal / cotacaoDolar.valor;
       }
     }
     
-    // Calcular o valor atual total dos ativos com base nos preços atuais
-    const saldoAtualTotal = updatedAtivos.reduce((total, ativo) => {
-      return total + (ativo.quantidade * ativo.precoAtual);
-    }, 0);
-    
-    // Recalcular percentuais
-    if (saldoAtualTotal > 0) {
+    // Recalcular percentuais com base no valor em USD
+    if (saldoAtualUSD > 0) {
       updatedAtivos = updatedAtivos.map(ativo => ({
         ...ativo,
-        percentual: (ativo.quantidade * ativo.precoAtual / saldoAtualTotal) * 100
+        percentual: (ativo.valorAtualUSD / saldoAtualUSD) * 100
       }));
     }
     
-    // Calcular lucro e percentual de lucro
-    const lucro = saldoAtualTotal - wallet.aporteTotal;
-    const percentualLucro = wallet.aporteTotal > 0 ? (lucro / wallet.aporteTotal) * 100 : 0;
+    // Calcular lucro e percentual de lucro em USD primeiro
+    const lucroUSD = saldoAtualUSD - custoTotalCriptosUSD;
+    const percentualLucro = custoTotalCriptosUSD > 0 ? (lucroUSD / custoTotalCriptosUSD) * 100 : 0;
+
+    // Converter valores para BRL
+    const saldoAtualBRL = saldoAtualUSD * cotacaoDolar.valor;
+    const custoTotalCriptosBRL = custoTotalCriptosUSD * cotacaoDolar.valor;
+    const lucroBRL = lucroUSD * cotacaoDolar.valor;
     
     // Atualizar a carteira
+    const updatedWallet = {
+      _id: wallet._id,
+      nome: wallet.nome,
+      ativos: updatedAtivos,
+      brl: {
+        saldoTotal: saldoAtualBRL,
+        custoTotalCriptos: custoTotalCriptosBRL,
+        lucro: lucroBRL,
+        percentualLucro: percentualLucro
+      },
+      usd: {
+        saldoTotal: saldoAtualUSD,
+        custoTotalCriptos: custoTotalCriptosUSD,
+        lucro: lucroUSD,
+        percentualLucro: percentualLucro // Percentual é o mesmo independente da moeda
+      },
+      dataCriacao: wallet.dataCriacao,
+      ultimaAtualizacao: new Date()
+    };
+
+    // Salvar no banco
     await req.db.collection('carteiras').updateOne(
       { _id: new req.ObjectId(id) },
-      { 
-        $set: { 
-          ativos: updatedAtivos,
-          saldoTotal: saldoAtualTotal,
-          lucro: lucro,
-          percentualLucro: percentualLucro,
-          ultimaAtualizacao: new Date()
-        } 
-      }
+      { $set: updatedWallet }
     );
     
-    // Retornar carteira atualizada
-    const updatedWallet = await req.db.collection('carteiras').findOne({ _id: new req.ObjectId(id) });
     res.json(updatedWallet);
   } catch (error) {
     console.error('Erro ao atualizar preços da carteira:', error);
@@ -368,6 +522,16 @@ exports.updateWalletPrices = async (req, res) => {
 exports.getAssets = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
     
     const wallet = await req.db.collection('carteiras').findOne(
       { 
@@ -383,17 +547,35 @@ exports.getAssets = async (req, res) => {
     
     // Atualizar preços dos ativos com base na tabela de criptomoedas
     const updatedAtivos = await Promise.all(wallet.ativos.map(async (ativo) => {
-      const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
+      const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome: ativo.nome });
       if (cryptoData) {
-        const valorAtual = ativo.quantidade * cryptoData.precoAtual;
-        const valorInicial = ativo.quantidade * ativo.valorUnitario;
-        const variacao = valorInicial > 0 ? ((valorAtual - valorInicial) / valorInicial) * 100 : 0;
+        // O preço atual já está em USD
+        const valorAtualUSD = ativo.quantidade * cryptoData.precoAtual;
+        // O valorUnitario está em BRL, então convertemos para USD para o cálculo
+        const valorInicialUSD = ativo.quantidade * (ativo.valorUnitario / cotacaoDolar.valor);
+        const variacaoUSD = valorInicialUSD > 0 ? ((valorAtualUSD - valorInicialUSD) / valorInicialUSD) * 100 : 0;
+        
+        // Calcular valores em BRL
+        const valorAtualBRL = valorAtualUSD * cotacaoDolar.valor;
+        const valorInicialBRL = ativo.quantidade * ativo.valorUnitario;
         
         return {
-          ...ativo,
-          precoAtual: cryptoData.precoAtual,
-          valorAtual: valorAtual,
-          variacao: variacao
+          nome: ativo.nome,
+          quantidade: ativo.quantidade,
+          brl: {
+            valorUnitario: ativo.valorUnitario,
+            precoAtual: cryptoData.precoAtual * cotacaoDolar.valor, // Converter USD para BRL
+            valorAtual: valorAtualBRL,
+            valorInicial: valorInicialBRL,
+            variacao: variacaoUSD // Variação percentual é a mesma independente da moeda
+          },
+          usd: {
+            valorUnitario: ativo.valorUnitario / cotacaoDolar.valor,
+            precoAtual: cryptoData.precoAtual, // Já está em USD
+            valorAtual: valorAtualUSD,
+            valorInicial: valorInicialUSD,
+            variacao: variacaoUSD
+          }
         };
       }
       return ativo;
@@ -421,30 +603,61 @@ exports.getWalletBalance = async (req, res) => {
     if (!wallet) {
       return res.status(404).json({ error: 'Carteira não encontrada' });
     }
+
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne({}, { sort: { timestamp: -1 } });
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
     
-    // Calcular saldo atual com base nos preços atuais das criptomoedas
-    let saldoAtual = 0;
+    // Calcular saldo atual e custo total das criptomoedas atuais
+    let saldoAtualUSD = 0;
+    let custoTotalCriptosUSD = 0;
     
     if (wallet.ativos && wallet.ativos.length > 0) {
       for (const ativo of wallet.ativos) {
-        const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
+        const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome: ativo.nome });
         if (cryptoData) {
-          saldoAtual += ativo.quantidade * cryptoData.precoAtual;
+          // O preço já está em USD, então usamos direto para USD
+          saldoAtualUSD += ativo.quantidade * cryptoData.precoAtual;
+          // O valorUnitario está em BRL, então convertemos para USD
+          custoTotalCriptosUSD += ativo.quantidade * (ativo.valorUnitario / cotacaoDolar.valor);
         } else {
-          saldoAtual += ativo.valorTotal;
+          // Se não encontrar o preço atual, usa o valor total convertido para USD
+          saldoAtualUSD += ativo.valorTotal / cotacaoDolar.valor;
+          custoTotalCriptosUSD += ativo.valorTotal / cotacaoDolar.valor;
         }
       }
     }
     
-    // Calcular lucro e percentual de lucro
-    const lucro = saldoAtual - wallet.aporteTotal;
-    const percentualLucro = wallet.aporteTotal > 0 ? (lucro / wallet.aporteTotal) * 100 : 0;
+    // Calcular valores em USD primeiro (já que os preços estão em USD)
+    const lucroUSD = saldoAtualUSD - custoTotalCriptosUSD;
+    const percentualLucro = custoTotalCriptosUSD > 0 ? (lucroUSD / custoTotalCriptosUSD) * 100 : 0;
+
+    // Converter valores para BRL
+    const saldoAtualBRL = saldoAtualUSD * cotacaoDolar.valor;
+    const custoTotalCriptosBRL = custoTotalCriptosUSD * cotacaoDolar.valor;
+    const lucroBRL = lucroUSD * cotacaoDolar.valor;
+    
+    // Incluir lucro realizado na resposta
+    const lucroRealizadoBRL = wallet.lucroRealizado || 0;
+    const lucroRealizadoUSD = lucroRealizadoBRL / cotacaoDolar.valor;
     
     res.json({
-      saldoTotal: saldoAtual,
-      aporteTotal: wallet.aporteTotal,
-      lucro: lucro,
-      percentualLucro: percentualLucro
+      brl: {
+        saldoTotal: saldoAtualBRL,
+        custoTotalCriptos: custoTotalCriptosBRL,
+        lucro: lucroBRL,
+        percentualLucro: percentualLucro,
+        lucroRealizado: lucroRealizadoBRL
+      },
+      usd: {
+        saldoTotal: saldoAtualUSD,
+        custoTotalCriptos: custoTotalCriptosUSD,
+        lucro: lucroUSD,
+        percentualLucro: percentualLucro,
+        lucroRealizado: lucroRealizadoUSD
+      }
     });
   } catch (error) {
     console.error('Erro ao obter saldo da carteira:', error);
@@ -455,26 +668,39 @@ exports.getWalletBalance = async (req, res) => {
 // Obter todas as carteiras
 exports.getAllWallets = async (req, res) => {
   try {
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
+
     // Filtrar carteiras pelo userId
     const wallets = await req.db.collection('carteiras')
       .find({ userId: req.userId })
       .toArray();
       
     // Atualizar cada carteira com preços atuais
-    for (let wallet of wallets) {
+    const walletsWithCurrencies = await Promise.all(wallets.map(async (wallet) => {
       if (wallet.ativos && wallet.ativos.length > 0) {
         let saldoAtual = 0;
+        let custoTotalCriptos = 0;
         
         for (let i = 0; i < wallet.ativos.length; i++) {
           const ativo = wallet.ativos[i];
-          const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
+          const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome: ativo.nome });
           
           if (cryptoData) {
             wallet.ativos[i].precoAtual = cryptoData.precoAtual;
             wallet.ativos[i].valorAtual = ativo.quantidade * cryptoData.precoAtual;
             saldoAtual += wallet.ativos[i].valorAtual;
+            custoTotalCriptos += ativo.quantidade * ativo.valorUnitario;
           } else {
             saldoAtual += ativo.valorTotal;
+            custoTotalCriptos += ativo.valorTotal;
           }
         }
         
@@ -485,14 +711,70 @@ exports.getAllWallets = async (req, res) => {
           });
         }
         
-        // Atualizar saldo total, lucro e percentual de lucro
-        wallet.saldoTotal = saldoAtual;
-        wallet.lucro = saldoAtual - wallet.aporteTotal;
-        wallet.percentualLucro = wallet.aporteTotal > 0 ? (wallet.lucro / wallet.aporteTotal) * 100 : 0;
+        // Calcular valores em BRL
+        const lucroBRL = saldoAtual - custoTotalCriptos;
+        const percentualLucroBRL = custoTotalCriptos > 0 ? (lucroBRL / custoTotalCriptos) * 100 : 0;
+
+        // Calcular valores em USD
+        const saldoAtualUSD = saldoAtual / cotacaoDolar.valor;
+        const custoTotalCriptosUSD = custoTotalCriptos / cotacaoDolar.valor;
+        const lucroUSD = lucroBRL / cotacaoDolar.valor;
+
+        // Incluir lucro realizado
+        const lucroRealizadoBRL = wallet.lucroRealizado || 0;
+        const lucroRealizadoUSD = lucroRealizadoBRL / cotacaoDolar.valor;
+
+        // Retornar objeto com valores em ambas as moedas
+        return {
+          _id: wallet._id,
+          nome: wallet.nome,
+          ativos: wallet.ativos.map(ativo => ({
+            ...ativo,
+            valorAtualUSD: ativo.valorAtual / cotacaoDolar.valor,
+            precoAtualUSD: ativo.precoAtual / cotacaoDolar.valor
+          })),
+          brl: {
+            saldoTotal: saldoAtual,
+            custoTotalCriptos: custoTotalCriptos,
+            lucro: lucroBRL,
+            percentualLucro: percentualLucroBRL,
+            lucroRealizado: lucroRealizadoBRL
+          },
+          usd: {
+            saldoTotal: saldoAtualUSD,
+            custoTotalCriptos: custoTotalCriptosUSD,
+            lucro: lucroUSD,
+            percentualLucro: percentualLucroBRL,
+            lucroRealizado: lucroRealizadoUSD
+          },
+          dataCriacao: wallet.dataCriacao
+        };
       }
-    }
+      
+      // Se não tiver ativos, retornar carteira zerada em ambas as moedas
+      return {
+        _id: wallet._id,
+        nome: wallet.nome,
+        ativos: [],
+        brl: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0,
+          lucroRealizado: wallet.lucroRealizado || 0
+        },
+        usd: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0,
+          lucroRealizado: (wallet.lucroRealizado || 0) / cotacaoDolar.valor
+        },
+        dataCriacao: wallet.dataCriacao
+      };
+    }));
     
-    res.json(wallets);
+    res.json(walletsWithCurrencies);
   } catch (error) {
     console.error('Erro ao listar carteiras:', error);
     res.status(500).json({ error: 'Erro ao listar carteiras' });
@@ -504,10 +786,20 @@ exports.getWallet = async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Buscar cotação do dólar
+    const cotacaoDolar = await req.db.collection('cotacao_dolar').findOne(
+      {},
+      { sort: { timestamp: -1 } }
+    );
+
+    if (!cotacaoDolar) {
+      return res.status(500).json({ error: 'Cotação do dólar não encontrada' });
+    }
+    
     // Adiciona verificação de propriedade da carteira
     const wallet = await req.db.collection('carteiras').findOne({ 
       _id: new req.ObjectId(id),
-      userId: req.userId // Verificar se a carteira pertence ao usuário
+      userId: req.userId
     });
     
     if (!wallet) {
@@ -517,17 +809,20 @@ exports.getWallet = async (req, res) => {
     // Atualizar preços e valores com base nos preços atuais
     if (wallet.ativos && wallet.ativos.length > 0) {
       let saldoAtual = 0;
+      let custoTotalCriptos = 0;
       
       for (let i = 0; i < wallet.ativos.length; i++) {
         const ativo = wallet.ativos[i];
-        const cryptoData = await req.db.collection('criptomoedas').findOne({ nome: ativo.nome });
+        const cryptoData = await req.db.collection('criptomoedas_teste').findOne({ nome: ativo.nome });
         
         if (cryptoData) {
           wallet.ativos[i].precoAtual = cryptoData.precoAtual;
           wallet.ativos[i].valorAtual = ativo.quantidade * cryptoData.precoAtual;
           saldoAtual += wallet.ativos[i].valorAtual;
+          custoTotalCriptos += ativo.quantidade * ativo.valorUnitario;
         } else {
           saldoAtual += ativo.valorTotal;
+          custoTotalCriptos += ativo.valorTotal;
         }
       }
       
@@ -538,13 +833,69 @@ exports.getWallet = async (req, res) => {
         });
       }
       
-      // Atualizar saldo total, lucro e percentual de lucro
-      wallet.saldoTotal = saldoAtual;
-      wallet.lucro = saldoAtual - wallet.aporteTotal;
-      wallet.percentualLucro = wallet.aporteTotal > 0 ? (wallet.lucro / wallet.aporteTotal) * 100 : 0;
+      // Calcular valores em BRL
+      const lucroBRL = saldoAtual - custoTotalCriptos;
+      const percentualLucroBRL = custoTotalCriptos > 0 ? (lucroBRL / custoTotalCriptos) * 100 : 0;
+
+      // Calcular valores em USD
+      const saldoAtualUSD = saldoAtual / cotacaoDolar.valor;
+      const custoTotalCriptosUSD = custoTotalCriptos / cotacaoDolar.valor;
+      const lucroUSD = lucroBRL / cotacaoDolar.valor;
+
+      // Incluir lucro realizado
+      const lucroRealizadoBRL = wallet.lucroRealizado || 0;
+      const lucroRealizadoUSD = lucroRealizadoBRL / cotacaoDolar.valor;
+
+      // Retornar objeto com valores em ambas as moedas
+      const response = {
+        _id: wallet._id,
+        nome: wallet.nome,
+        ativos: wallet.ativos.map(ativo => ({
+          ...ativo,
+          valorAtualUSD: ativo.valorAtual / cotacaoDolar.valor,
+          precoAtualUSD: ativo.precoAtual / cotacaoDolar.valor
+        })),
+        brl: {
+          saldoTotal: saldoAtual,
+          custoTotalCriptos: custoTotalCriptos,
+          lucro: lucroBRL,
+          percentualLucro: percentualLucroBRL,
+          lucroRealizado: lucroRealizadoBRL
+        },
+        usd: {
+          saldoTotal: saldoAtualUSD,
+          custoTotalCriptos: custoTotalCriptosUSD,
+          lucro: lucroUSD,
+          percentualLucro: percentualLucroBRL,
+          lucroRealizado: lucroRealizadoUSD
+        },
+        dataCriacao: wallet.dataCriacao
+      };
+      
+      res.json(response);
+    } else {
+      // Se não tiver ativos, retornar carteira zerada em ambas as moedas
+      res.json({
+        _id: wallet._id,
+        nome: wallet.nome,
+        ativos: [],
+        brl: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0,
+          lucroRealizado: wallet.lucroRealizado || 0
+        },
+        usd: {
+          saldoTotal: 0,
+          custoTotalCriptos: 0,
+          lucro: 0,
+          percentualLucro: 0,
+          lucroRealizado: (wallet.lucroRealizado || 0) / cotacaoDolar.valor
+        },
+        dataCriacao: wallet.dataCriacao
+      });
     }
-    
-    res.json(wallet);
   } catch (error) {
     console.error('Erro ao obter carteira:', error);
     res.status(500).json({ error: 'Erro ao obter carteira' });

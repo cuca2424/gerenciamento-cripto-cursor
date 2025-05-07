@@ -1,11 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
 import { useCurrency } from "./contexts/CurrencyContext";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/bootstrap.css";
+import "./paginas/Auth/custom.css";
 
 function Layout({componente}) {
   const { currency, setCurrency } = useCurrency();
   const navigate = useNavigate();
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const { user, logout, fetchUserData } = useUser();
+  const phoneInputRef = useRef(null);
 
   {/* menu do topo */}
   const [itemsMenuTopo, setItemsMenuTopo] = useState(() => {
@@ -110,8 +118,37 @@ function Layout({componente}) {
       }
   },[])
 
-  const { user } = useUser();
-  const nome_usuario = user?.nome || null;
+  const handleUpdatePhone = async () => {
+    try {
+      if (newPhone.length < 5) {
+        setPhoneError("Número de telefone inválido");
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_ENDPOINT_API}/usuario/telefone`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ telefone: newPhone })
+      });
+
+      if (response.ok) {
+        setShowPhoneModal(false);
+        setNewPhone("");
+        setPhoneError("");
+        // Atualizar o contexto do usuário
+        await fetchUserData();
+      } else {
+        const data = await response.json();
+        setPhoneError(data.message || "Erro ao atualizar telefone");
+      }
+    } catch (error) {
+      setPhoneError("Erro ao conectar com o servidor");
+    }
+  };
 
   return (
     <div>
@@ -120,7 +157,7 @@ function Layout({componente}) {
       <main class="main" id="top">
 
         {/* menu lateral */}
-        <nav class="navbar navbar-vertical navbar-expand-lg">
+        <nav class="navbar navbar-vertical navbar-expand-xl">
           <div class="collapse navbar-collapse" id="navbarVerticalCollapse">
             <div class="navbar-vertical-content">
               <ul class="navbar-nav flex-column" id="navbarVerticalNav">
@@ -182,14 +219,6 @@ function Layout({componente}) {
                     </Link>
                   </div>
 
-                  {/* item do menu lateral - Notificações */}
-                  <div class="nav-item-wrapper">
-                    <Link to={"/notificacoes"} className={rotaAtual === "/notificacoes" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Notificações", rota: "/notificacoes", icone: "bell"})}>
-                      <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="bell" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Notificações</span></span>
-                      </div>
-                    </Link>
-                  </div>
-
                   {/* label do menu lateral - Financeiro */}
                   <p class="navbar-vertical-label">Financeiro
                   </p>
@@ -201,6 +230,20 @@ function Layout({componente}) {
                       </div>
                     </Link>
                   </div>
+
+                  {/* Seção de Admin (apenas para usuários admin) */}
+                  {user?.role === 'admin' && (
+                    <>
+                      <p class="navbar-vertical-label">Administração
+                      </p>
+                      <div class="nav-item-wrapper">
+                        <Link to={"/admin"} className={rotaAtual === "/admin" ? "nav-link active label-1" : "nav-link label-1"} role="button" data-bs-toggle="" aria-expanded="false" onClick={() => handleMenuClick({nome: "Admin", rota: "/admin", icone: "settings"})}>
+                          <div class="d-flex align-items-center"><span class="nav-link-icon"><span data-feather="settings" style={{height: "16px", width: "16px"}}></span></span><span class="nav-link-text-wrapper"><span class="nav-link-text">Painel Admin</span></span>
+                          </div>
+                        </Link>
+                      </div>
+                    </>
+                  )}
                 </li>
               </ul>
             </div>
@@ -274,6 +317,87 @@ function Layout({componente}) {
             </div>
 
             <ul class="navbar-nav navbar-nav-icons flex-row">
+              <li class="nav-item d-flex">
+                {/* Currency buttons container */}
+                <div class="d-flex currency-toggle-container" style={{ gap: "8px", padding: "0 8px" }}>
+                  {/* USD button */}
+                  <button
+                    onClick={() => setCurrency("USD")}
+                    className={`btn ${currency === "USD" ? 'btn-primary' : 'btn-outline-primary'}`}
+                    style={{
+                      minWidth: "64px",
+                      height: "32px",
+                      padding: "4px 12px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.3s ease",
+                      transform: currency === "USD" ? "scale(1)" : "scale(1)",
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <span style={{
+                      position: "relative",
+                      zIndex: 2,
+                      color: currency === "USD" ? "white" : "#3874ff",
+                      fontWeight: "700"
+                    }}>USD</span>
+                    {currency === "USD" && (
+                      <div style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: "100%",
+                        background: "#3874ff",
+                        animation: "ripple 0.6s linear"
+                      }} />
+                    )}
+                  </button>
+
+                  {/* BRL button */}
+                  <button
+                    onClick={() => setCurrency("BRL")}
+                    className={`btn ${currency === "BRL" ? 'btn-primary' : 'btn-outline-primary'}`}
+                    style={{
+                      minWidth: "64px",
+                      height: "32px",
+                      padding: "4px 12px",
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.3s ease",
+                      transform: currency === "BRL" ? "scale(1)" : "scale(1)",
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                  >
+                    <span style={{
+                      position: "relative",
+                      zIndex: 2,
+                      color: currency === "BRL" ? "white" : "#3874ff",
+                      fontWeight: "700"
+                    }}>BRL</span>
+                    {currency === "BRL" && (
+                      <div style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: "100%",
+                        background: "#3874ff",
+                        animation: "ripple 0.6s linear"
+                      }} />
+                    )}
+                  </button>
+                </div>
+              </li>
+
               <li class="nav-item">
                 {/* botao do tema */}
                 <div class="theme-control-toggle px-2">
@@ -286,63 +410,86 @@ function Layout({componente}) {
                   </label>
                 </div>
               </li>
-
-              <li class="nav-item">
-                {/* botao de moeda USD */}
-                <div class="theme-control-toggle px-2">
-                  <input class="form-check-input ms-0 theme-control-toggle-input" type="radio" name="currency" id="currencyUSD" checked={currency === "USD"} onChange={() => setCurrency("USD")} />
-                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="currencyUSD" data-bs-placement="left" data-bs-title="USD" style={{height: "32px", width: "32px", opacity: currency === "USD" ? "1" : "0.3"}}>
-                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>USD</span>
-                  </label>
-                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="currencyUSD" data-bs-placement="left" data-bs-title="USD" style={{height: "32px", width: "32px", opacity: currency === "USD" ? "1" : "0.3"}}>
-                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>USD</span>
-                  </label>
-                </div>
-              </li>
-
-              <li class="nav-item">
-                {/* botao de moeda BRL */}
-                <div class="theme-control-toggle px-2">
-                  <input class="form-check-input ms-0 theme-control-toggle-input" type="radio" name="currency" id="currencyBRL" checked={currency === "BRL"} onChange={() => setCurrency("BRL")} />
-                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-light" for="currencyBRL" data-bs-placement="left" data-bs-title="BRL" style={{height: "32px", width: "32px", opacity: currency === "BRL" ? "1" : "0.3"}}>
-                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>BRL</span>
-                  </label>
-                  <label class="mb-0 theme-control-toggle-label theme-control-toggle-dark" for="currencyBRL" data-bs-placement="left" data-bs-title="BRL" style={{height: "32px", width: "32px", opacity: currency === "BRL" ? "1" : "0.3"}}>
-                    <span class="icon d-flex align-items-center justify-content-center" style={{height: "16px", width: "16px", fontSize: "12px", fontWeight: "500"}}>BRL</span>
-                  </label>
-                </div>
-              </li>
               
-              {/* foto de perfil */}
+              {/* ícone de configurações */}
               <li class="nav-item dropdown"><a class="nav-link lh-1 pe-0" id="navbarDropdownUser" href="#!" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
-                <div class="avatar avatar-l ">
-                  <img class="rounded-circle " src="../assets/img/team/40x40/57.webp" alt="" />
+                <div class="avatar avatar-l d-flex align-items-center justify-content-center">
+                  <span data-feather="settings" style={{height: "24px", width: "24px"}}></span>
                 </div>
               </a>
 
-              {/* card da foto de perfil */}
+              {/* card de configurações */}
                 <div class="dropdown-menu dropdown-menu-end navbar-dropdown-caret py-0 dropdown-profile shadow border" aria-labelledby="navbarDropdownUser">
                   <div class="card position-relative border-0">
                     <div class="card-body p-0">
                       <div class="text-center pt-4 pb-3">
-                        <div class="avatar avatar-xl ">
-                          <img class="rounded-circle " src="assets/img/team/72x72/57.webp" alt="" />
-                        </div>
-                        <h6 class="mt-2 text-body-emphasis">{nome_usuario || "Jerry Seinfield"}</h6>
+                        <h6 class="text-body-emphasis fw-semibold">{user?.nome || "Usuário"}</h6>
+                        <p class="text-body-tertiary mb-0">{user?.email || ""}</p>
+                        <p class="text-body-tertiary mb-3">{user?.telefone || "Sem telefone cadastrado"}</p>
                       </div>
                     </div>
-                      <div class="px-3 py-5"> 
-                        <button class="btn btn-phoenix-secondary d-flex flex-center w-100" onClick={() => {
-                          localStorage.removeItem("token");
-                          navigate("/login");
-                        }}> <span class="me-2" data-feather="log-out"> </span>Sair</button>
-                      </div>
+                    <div class="px-3 pb-3">
+                      <button class="btn btn-phoenix-secondary d-flex flex-center w-100 mb-3" onClick={() => setShowPhoneModal(true)}>
+                        <span class="me-2" data-feather="phone"></span>Alterar Telefone
+                      </button>
+                      <button class="btn btn-phoenix-secondary d-flex flex-center w-100" onClick={() => {
+                        logout();
+                        navigate("/login");
+                      }}><span class="me-2" data-feather="log-out"></span>Sair</button>
+                    </div>
                   </div>
                 </div>
               </li>
             </ul>
           </div>
         </nav>
+
+        {/* Modal de alteração de telefone */}
+        {showPhoneModal && (
+          <div class="modal show" tabIndex="-1" role="dialog" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Alterar Número de Telefone</h5>
+                  <button type="button" class="btn-close" onClick={() => {
+                    setShowPhoneModal(false);
+                    setNewPhone("");
+                    setPhoneError("");
+                  }}></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3 text-start">
+                    <label class="form-label" for="phone">Novo número de telefone</label>
+                    <PhoneInput
+                      ref={phoneInputRef}
+                      country="br"
+                      value={newPhone}
+                      onChange={setNewPhone}
+                      inputClass="form-control custom-input w-100"
+                      dropdownClass="custom-dropdown"
+                      placeholder="+55 (11) 9 11111111"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleUpdatePhone();
+                        }
+                      }}
+                    />
+                    {phoneError && <div class="text-danger mt-2">{phoneError}</div>}
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" onClick={() => {
+                    setShowPhoneModal(false);
+                    setNewPhone("");
+                    setPhoneError("");
+                  }}>Cancelar</button>
+                  <button type="button" class="btn btn-primary" onClick={handleUpdatePhone}>Salvar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div class="content px-2 pt-10 pb-0">
           {/* conteúdo do componente */}

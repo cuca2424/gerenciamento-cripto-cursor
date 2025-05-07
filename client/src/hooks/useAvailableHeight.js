@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react';
 
 const useAvailableHeight = (topOffset = 0) => {
-  const [availableHeight, setAvailableHeight] = useState(0);
+  // Calcula a altura inicial imediatamente
+  const calculateHeight = () => {
+    const windowHeight = window.innerHeight;
+    return windowHeight - topOffset;
+  };
+
+  const [availableHeight, setAvailableHeight] = useState(calculateHeight());
 
   useEffect(() => {
-    const calculateHeight = () => {
-      const windowHeight = window.innerHeight;
-      const availableSpace = windowHeight - topOffset;
-      setAvailableHeight(availableSpace);
+    const handleResize = () => {
+      setAvailableHeight(calculateHeight());
     };
 
-    calculateHeight();
-    window.addEventListener('resize', calculateHeight);
-
-    return () => window.removeEventListener('resize', calculateHeight);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [topOffset]);
 
   return availableHeight;
